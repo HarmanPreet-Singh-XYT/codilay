@@ -41,8 +41,10 @@ class UI:
 
         table.add_row("Target", config.target_path)
         table.add_row("LLM Provider", config.llm_provider)
-        table.add_row("LLM Model", config.llm_model)
+        table.add_row("LLM Model", config.llm_model or "[dim]auto (provider default)[/dim]")
         table.add_row("Max Tokens/Call", str(config.max_tokens_per_call))
+        if getattr(config, "llm_base_url", None):
+            table.add_row("Base URL", config.llm_base_url)
         if config.notes:
             short = config.notes[:80] + ("…" if len(config.notes) > 80 else "")
             table.add_row("Notes", short)

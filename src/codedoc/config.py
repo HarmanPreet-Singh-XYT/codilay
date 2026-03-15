@@ -13,8 +13,9 @@ class CodeDocConfig:
     notes: str = ""
     instructions: str = ""
     entry_hint: Optional[str] = None
-    llm_model: str = "claude-sonnet-4-20250514"
+    llm_model: Optional[str] = None            # None = use provider default
     llm_provider: str = "anthropic"
+    llm_base_url: Optional[str] = None         # Override provider's default base URL
     max_tokens_per_call: int = 4096
     max_file_size: int = 50000
     skip_binary: bool = True
@@ -60,6 +61,8 @@ class CodeDocConfig:
                 config.max_tokens_per_call = llm["maxTokensPerCall"]
             if "provider" in llm:
                 config.llm_provider = llm["provider"]
+            if "baseUrl" in llm:
+                config.llm_base_url = llm["baseUrl"]
             if "skipGenerated" in data:
                 config.skip_generated = data["skipGenerated"]
 

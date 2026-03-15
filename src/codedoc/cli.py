@@ -34,7 +34,7 @@ from codedoc.processor import Processor
 from codedoc.wire_manager import WireManager
 from codedoc.docstore import DocStore
 from codedoc.state import AgentState
-from codedoc.llm_client import LLMClient
+from codedoc.llm_client import LLMClient, ALL_PROVIDERS
 from codedoc.git_tracker import GitTracker, ChangeType
 from codedoc.ui import UI
 
@@ -46,18 +46,19 @@ def common_options(fn):
     fn = click.option("--output", "-o", default=None, help="Output directory")(fn)
     fn = click.option("--model", "-m", default=None, help="LLM model override")(fn)
     fn = click.option(
-        "--provider", "-p", default="anthropic",
-        type=click.Choice(["anthropic", "openai"]), help="LLM provider",
+        "--provider", "-p", default=None,
+        type=click.Choice(ALL_PROVIDERS), help="LLM provider",
     )(fn)
+    fn = click.option("--base-url", default=None, help="Custom LLM API base URL")(fn)
     fn = click.option("--verbose", "-v", is_flag=True, help="Verbose output")(fn)
     return fn
 
 
-@click.group(invoke_without_command=True)
+@click.group(invoke_without_command=True, context_settings={"allow_interspersed_args": True})
 @click.argument("target", default=".", type=click.Path(exists=True))
 @common_options
 @click.pass_context
-def cli(ctx, target, config, output, model, provider, verbose):
+def cli(ctx, target, config, output, model, provider, base_url, verbose):
     """
     CodeDoc — AI Agent for Codebase Documentation.
 
@@ -66,6 +67,10 @@ def cli(ctx, target, config, output, model, provider, verbose):
         codedoc .                        Document current directory
         codedoc /path/to/project         Document a specific project
         codedoc . -p openai -m gpt-4o    Use OpenAI
+        codedoc . -p gemini              Use Google Gemini
+        codedoc . -p ollama              Use local Ollama
+        codedoc . -p groq                Use Groq
+        codedoc . -p custom --base-url https://my-llm.com/v1 -m my-model
         codedoc . -v                     Verbose mode
     """
     ctx.ensure_object(dict)
@@ -74,6 +79,7 @@ def cli(ctx, target, config, output, model, provider, verbose):
     ctx.obj["output"] = output
     ctx.obj["model"] = model
     ctx.obj["provider"] = provider
+    ctx.obj["base_url"] = base_url
     ctx.obj["verbose"] = verbose
 
     if ctx.invoked_subcommand is None:
@@ -89,6 +95,7 @@ def run(ctx):
     output_dir = ctx.obj["output"]
     model_override = ctx.obj["model"]
     provider = ctx.obj["provider"]
+    base_url = ctx.obj["base_url"]
     verbose = ctx.obj["verbose"]
 
     ui = UI(console, verbose)
@@ -96,9 +103,20 @@ def run(ctx):
 
     # ── Load Config ──────────────────────────────────────────────
     cfg = CodeDocConfig.load(target, config_path)
+
+    # Smart provider/model override:
+    # - If provider is switched via CLI and no model given, reset model
+    #   so the new provider's default kicks in.
+    # - If neither is given, config file values are used as-is.
+    if provider is not None:
+        if model_override is None and provider != cfg.llm_provider:
+            cfg.llm_model = None        # let provider default kick in
+        cfg.llm_provider = provider
     if model_override:
         cfg.llm_model = model_override
-    cfg.llm_provider = provider
+    if base_url:
+        cfg.llm_base_url = base_url
+
     ui.show_config(cfg)
 
     # ── Resolve paths ────────────────────────────────────────────

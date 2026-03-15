@@ -1,14 +1,94 @@
-"""LLM client abstraction — supports Anthropic and OpenAI."""
+"""LLM client — supports Anthropic, OpenAI, and 8+ OpenAI-compatible providers."""
 
 import json
 import os
 import sys
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import tiktoken
 
-# Rate-limit error classes — loaded lazily so missing SDK doesn't crash import
+
+# ── Provider registry ─────────────────────────────────────────────────────────
+# "sdk" is "anthropic" (native SDK) or "openai" (OpenAI SDK / compatible).
+
+PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
+    "anthropic": {
+        "sdk": "anthropic",
+        "env_key": "ANTHROPIC_API_KEY",
+        "default_model": "claude-sonnet-4-20250514",
+        "label": "Anthropic",
+    },
+    "openai": {
+        "sdk": "openai",
+        "base_url": None,                   # uses SDK default
+        "env_key": "OPENAI_API_KEY",
+        "default_model": "gpt-4o",
+        "label": "OpenAI",
+    },
+    "ollama": {
+        "sdk": "openai",
+        "base_url": "http://localhost:11434/v1",
+        "env_key": None,                    # no key for local
+        "default_model": "llama3.2",
+        "label": "Ollama (local)",
+    },
+    "gemini": {
+        "sdk": "openai",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "env_key": "GEMINI_API_KEY",
+        "default_model": "gemini-2.0-flash",
+        "label": "Google Gemini",
+    },
+    "deepseek": {
+        "sdk": "openai",
+        "base_url": "https://api.deepseek.com",
+        "env_key": "DEEPSEEK_API_KEY",
+        "default_model": "deepseek-chat",
+        "label": "DeepSeek",
+    },
+    "mistral": {
+        "sdk": "openai",
+        "base_url": "https://api.mistral.ai/v1",
+        "env_key": "MISTRAL_API_KEY",
+        "default_model": "mistral-large-latest",
+        "label": "Mistral AI",
+    },
+    "groq": {
+        "sdk": "openai",
+        "base_url": "https://api.groq.com/openai/v1",
+        "env_key": "GROQ_API_KEY",
+        "default_model": "llama-3.3-70b-versatile",
+        "label": "Groq",
+    },
+    "xai": {
+        "sdk": "openai",
+        "base_url": "https://api.x.ai/v1",
+        "env_key": "XAI_API_KEY",
+        "default_model": "grok-2-latest",
+        "label": "xAI (Grok)",
+    },
+    "llama": {
+        "sdk": "openai",
+        "base_url": "https://api.llama.com/compat/v1/",
+        "env_key": "LLAMA_API_KEY",
+        "default_model": "Llama-4-Maverick-17B-128E",
+        "label": "Llama Cloud (Meta)",
+    },
+    "custom": {
+        "sdk": "openai",
+        "base_url": None,                   # MUST be supplied
+        "env_key": "CUSTOM_LLM_API_KEY",
+        "default_model": None,              # MUST be supplied
+        "label": "Custom endpoint",
+    },
+}
+
+ALL_PROVIDERS = list(PROVIDER_CONFIGS.keys())
+
+
+# ── Rate-limit helpers ────────────────────────────────────────────────────────
+
 _anthropic_rate_limit_error = None
 _openai_rate_limit_error = None
 
@@ -21,7 +101,7 @@ def _get_rate_limit_errors():
             import anthropic
             _anthropic_rate_limit_error = anthropic.RateLimitError
         except ImportError:
-            _anthropic_rate_limit_error = type(None)        # never matches
+            _anthropic_rate_limit_error = type(None)
     if _openai_rate_limit_error is None:
         try:
             import openai
@@ -33,7 +113,6 @@ def _get_rate_limit_errors():
 
 def _extract_retry_after(exc) -> float:
     """Try to pull a retry-after value (seconds) from the API error response."""
-    # Anthropic embeds it in response headers
     try:
         response = getattr(exc, "response", None)
         if response is not None:
@@ -45,56 +124,120 @@ def _extract_retry_after(exc) -> float:
     return 0.0
 
 
-class LLMClient:
-    """Unified LLM client supporting Anthropic and OpenAI."""
+# ── LLM Client ───────────────────────────────────────────────────────────────
 
-    RATE_LIMIT_MAX_RETRIES = 5          # retry up to 5× on 429
-    RATE_LIMIT_DEFAULT_WAIT = 60.0      # when no retry-after header
+class LLMClient:
+    """Unified LLM client supporting Anthropic, OpenAI, and OpenAI-compatible providers."""
+
+    RATE_LIMIT_MAX_RETRIES = 5
+    RATE_LIMIT_DEFAULT_WAIT = 60.0
 
     def __init__(self, config):
         self.config = config
         self.provider = config.llm_provider
-        self.model = config.llm_model
-        self.max_tokens = config.max_tokens_per_call
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.call_count = 0
 
-        if self.provider == "anthropic":
-            try:
-                import anthropic
-                api_key = os.environ.get("ANTHROPIC_API_KEY")
-                if not api_key:
-                    raise ValueError(
-                        "ANTHROPIC_API_KEY not set. "
-                        "export ANTHROPIC_API_KEY=your-key"
-                    )
-                self.client = anthropic.Anthropic(api_key=api_key)
-            except ImportError:
-                raise ImportError("pip install anthropic")
+        pcfg = PROVIDER_CONFIGS.get(self.provider)
+        if pcfg is None:
+            raise ValueError(
+                f"Unknown provider '{self.provider}'. "
+                f"Supported: {', '.join(ALL_PROVIDERS)}"
+            )
 
-        elif self.provider == "openai":
-            try:
-                import openai
-                api_key = os.environ.get("OPENAI_API_KEY")
-                if not api_key:
-                    raise ValueError(
-                        "OPENAI_API_KEY not set. "
-                        "export OPENAI_API_KEY=your-key"
-                    )
-                self.client = openai.OpenAI(api_key=api_key)
-            except ImportError:
-                raise ImportError("pip install openai")
+        # Resolve model: explicit config → provider default
+        self.model = config.llm_model or pcfg["default_model"]
+        if not self.model:
+            raise ValueError(
+                f"No model specified for provider '{self.provider}'. "
+                f"Set it via --model or in codedoc.config.json"
+            )
 
+        self.max_tokens = config.max_tokens_per_call
+        self._sdk_type = pcfg["sdk"]        # "anthropic" or "openai"
+
+        # ── Build SDK client ───────────────────────────────────────
+        if self._sdk_type == "anthropic":
+            self._init_anthropic(pcfg)
+        else:
+            self._init_openai_compat(pcfg, config)
+
+        # Token counter (approximate — used for chunking, not billing)
         try:
             self.tokenizer = tiktoken.encoding_for_model("gpt-4")
         except Exception:
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
+    # ── Anthropic init ─────────────────────────────────────────────
+
+    def _init_anthropic(self, pcfg):
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "The 'anthropic' package is required. "
+                "Install: pip install anthropic"
+            )
+        api_key = os.environ.get(pcfg["env_key"])
+        if not api_key:
+            raise ValueError(
+                f"{pcfg['env_key']} not set. "
+                f"export {pcfg['env_key']}=your-key"
+            )
+        self.client = anthropic.Anthropic(api_key=api_key)
+
+    # ── OpenAI / compatible init ───────────────────────────────────
+
+    def _init_openai_compat(self, pcfg, config):
+        try:
+            import openai
+        except ImportError:
+            raise ImportError(
+                "The 'openai' package is required for this provider. "
+                "Install: pip install openai"
+            )
+
+        # Resolve base URL: CLI/config override → provider default → env
+        base_url = getattr(config, "llm_base_url", None) or pcfg.get("base_url")
+
+        if not base_url and self.provider == "custom":
+            base_url = os.environ.get("CUSTOM_LLM_BASE_URL")
+
+        if not base_url and self.provider == "custom":
+            raise ValueError(
+                "Custom provider requires a base URL. Set via:\n"
+                "  --base-url https://your-endpoint.com/v1\n"
+                "  OR codedoc.config.json → llm.baseUrl\n"
+                "  OR env CUSTOM_LLM_BASE_URL"
+            )
+
+        # Resolve API key
+        env_key = pcfg.get("env_key")
+        if env_key:
+            api_key = os.environ.get(env_key)
+            if not api_key:
+                raise ValueError(
+                    f"{env_key} not set. export {env_key}=your-key"
+                )
+        else:
+            # No key required (e.g. Ollama local)
+            api_key = "not-needed"
+
+        # Build client
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+
+        self.client = openai.OpenAI(**client_kwargs)
+
+    # ── Token counting ─────────────────────────────────────────────
+
     def count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text))
 
-    # ── public entry point ──────────────────────────────────────────
+    # ── Public entry point ─────────────────────────────────────────
+
     def call(
         self, system_prompt: str, user_prompt: str, retries: int = 3
     ) -> Dict[str, Any]:
@@ -109,13 +252,14 @@ class LLMClient:
                     time.sleep(2 ** attempt)
                     continue
                 return self._salvage_json(raw)
-            except Exception as e:
+            except Exception:
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)
                     continue
                 raise
 
-    # ── rate-limit-aware wrapper around _raw_call ───────────────────
+    # ── Rate-limit wrapper ─────────────────────────────────────────
+
     def _raw_call_with_rate_limit(
         self, system_prompt: str, user_prompt: str
     ) -> str:
@@ -128,13 +272,12 @@ class LLMClient:
                 return self._raw_call(system_prompt, user_prompt)
             except rate_limit_errors as exc:
                 if rate_attempt >= self.RATE_LIMIT_MAX_RETRIES - 1:
-                    raise                       # exhausted retries
+                    raise
 
                 wait = _extract_retry_after(exc)
                 if wait <= 0:
                     wait = self.RATE_LIMIT_DEFAULT_WAIT
 
-                # Add a small jitter to avoid thundering herd
                 wait += rate_attempt * 5
 
                 print(
@@ -146,36 +289,57 @@ class LLMClient:
                 )
                 time.sleep(wait)
 
-        # Shouldn't reach here, but just in case
         return self._raw_call(system_prompt, user_prompt)
 
-    def _raw_call(self, system_prompt: str, user_prompt: str) -> str:
-        if self.provider == "anthropic":
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
-            self.total_input_tokens += response.usage.input_tokens
-            self.total_output_tokens += response.usage.output_tokens
-            return response.content[0].text
+    # ── Raw API call (routes to correct SDK) ───────────────────────
 
-        elif self.provider == "openai":
+    def _raw_call(self, system_prompt: str, user_prompt: str) -> str:
+        if self._sdk_type == "anthropic":
+            return self._call_anthropic(system_prompt, user_prompt)
+        else:
+            return self._call_openai(system_prompt, user_prompt)
+
+    def _call_anthropic(self, system_prompt: str, user_prompt: str) -> str:
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        self.total_input_tokens += response.usage.input_tokens
+        self.total_output_tokens += response.usage.output_tokens
+        return response.content[0].text
+
+    def _call_openai(self, system_prompt: str, user_prompt: str) -> str:
+        kwargs = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+
+        # Try with JSON mode; fall back gracefully if unsupported
+        try:
             response = self.client.chat.completions.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+                **kwargs,
                 response_format={"type": "json_object"},
             )
-            usage = response.usage
-            if usage:
-                self.total_input_tokens += usage.prompt_tokens
-                self.total_output_tokens += usage.completion_tokens
-            return response.choices[0].message.content
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "response_format" in err_msg or "json_object" in err_msg:
+                response = self.client.chat.completions.create(**kwargs)
+            else:
+                raise
+
+        usage = response.usage
+        if usage:
+            self.total_input_tokens += getattr(usage, "prompt_tokens", 0) or 0
+            self.total_output_tokens += getattr(usage, "completion_tokens", 0) or 0
+        return response.choices[0].message.content
+
+    # ── JSON parsing ───────────────────────────────────────────────
 
     def _parse_json(self, text: str) -> Dict[str, Any]:
         text = text.strip()
