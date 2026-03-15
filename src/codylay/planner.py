@@ -2,9 +2,9 @@
 
 from typing import Dict, List, Any
 
-from codedoc.llm_client import LLMClient
-from codedoc.prompts import system_prompt, planning_prompt
-from codedoc.state import AgentState
+from codylay.llm_client import LLMClient
+from codylay.prompts import system_prompt, planning_prompt
+from codylay.state import AgentState
 
 
 class Planner:

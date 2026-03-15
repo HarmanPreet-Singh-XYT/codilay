@@ -1,12 +1,12 @@
 """
-CodeDoc CLI — the main entry point with git-aware change tracking.
+CodyLay CLI — the main entry point with git-aware change tracking.
 
 Usage:
-    codedoc .
-    codedoc /path/to/project
-    codedoc . --provider openai --model gpt-4o
-    codedoc status .
-    codedoc clean .
+    codylay .
+    codylay /path/to/project
+    codylay . --provider openai --model gpt-4o
+    codylay status .
+    codylay clean .
 """
 
 import sys
@@ -27,22 +27,22 @@ from rich.progress import (
 from rich.table import Table
 from rich import box
 
-from codedoc.config import CodeDocConfig
-from codedoc.scanner import Scanner
-from codedoc.planner import Planner
-from codedoc.processor import Processor
-from codedoc.wire_manager import WireManager
-from codedoc.docstore import DocStore
-from codedoc.state import AgentState
-from codedoc.llm_client import LLMClient, ALL_PROVIDERS
-from codedoc.git_tracker import GitTracker, ChangeType
-from codedoc.ui import UI
+from codylay.config import CodyLayConfig
+from codylay.scanner import Scanner
+from codylay.planner import Planner
+from codylay.processor import Processor
+from codylay.wire_manager import WireManager
+from codylay.docstore import DocStore
+from codylay.state import AgentState
+from codylay.llm_client import LLMClient, ALL_PROVIDERS
+from codylay.git_tracker import GitTracker, ChangeType
+from codylay.ui import UI
 
 console = Console()
 
 
 def common_options(fn):
-    fn = click.option("--config", "-c", default=None, help="Path to codedoc.config.json")(fn)
+    fn = click.option("--config", "-c", default=None, help="Path to codylay.config.json")(fn)
     fn = click.option("--output", "-o", default=None, help="Output directory")(fn)
     fn = click.option("--model", "-m", default=None, help="LLM model override")(fn)
     fn = click.option(
@@ -60,18 +60,18 @@ def common_options(fn):
 @click.pass_context
 def cli(ctx, target, config, output, model, provider, base_url, verbose):
     """
-    CodeDoc — AI Agent for Codebase Documentation.
+    CodyLay — AI Agent for Codebase Documentation.
 
     \b
     Examples:
-        codedoc .                        Document current directory
-        codedoc /path/to/project         Document a specific project
-        codedoc . -p openai -m gpt-4o    Use OpenAI
-        codedoc . -p gemini              Use Google Gemini
-        codedoc . -p ollama              Use local Ollama
-        codedoc . -p groq                Use Groq
-        codedoc . -p custom --base-url https://my-llm.com/v1 -m my-model
-        codedoc . -v                     Verbose mode
+        codylay .                        Document current directory
+        codylay /path/to/project         Document a specific project
+        codylay . -p openai -m gpt-4o    Use OpenAI
+        codylay . -p gemini              Use Google Gemini
+        codylay . -p ollama              Use local Ollama
+        codylay . -p groq                Use Groq
+        codylay . -p custom --base-url https://my-llm.com/v1 -m my-model
+        codylay . -v                     Verbose mode
     """
     ctx.ensure_object(dict)
     ctx.obj["target"] = os.path.abspath(target)
@@ -102,7 +102,7 @@ def run(ctx):
     ui.show_banner()
 
     # ── Load Config ──────────────────────────────────────────────
-    cfg = CodeDocConfig.load(target, config_path)
+    cfg = CodyLayConfig.load(target, config_path)
 
     # Smart provider/model override:
     # - If provider is switched via CLI and no model given, reset model
@@ -123,7 +123,7 @@ def run(ctx):
     if output_dir is None:
         output_dir = os.path.join(target, "output")
 
-    state_path = os.path.join(output_dir, ".codedoc_state.json")
+    state_path = os.path.join(output_dir, ".codylay_state.json")
     codebase_md_path = os.path.join(output_dir, "CODEBASE.md")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -216,7 +216,7 @@ def run(ctx):
     if mode == "full" and cfg.triage_mode != "none":
         ui.phase("Phase 1.5 · Triage — Classifying files to save tokens")
 
-        from codedoc.triage import Triage
+        from codylay.triage import Triage
 
         triage = Triage(llm_client=llm, config=cfg)
 
@@ -545,7 +545,7 @@ def _finalize_and_write(
     state_path, git, current_commit, current_commit_short,
 ):
     """Finalize documentation, write all output files, save state."""
-    from codedoc.processor import Processor
+    from codylay.processor import Processor
 
     ui.phase("Phase 4 · Finalize — Assembling documentation")
 
@@ -622,19 +622,19 @@ def _finalize_and_write(
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
 def status(target):
-    """Show current CodeDoc state for a project."""
+    """Show current CodyLay state for a project."""
     target = os.path.abspath(target)
     output_dir = os.path.join(target, "output")
-    state_path = os.path.join(output_dir, ".codedoc_state.json")
+    state_path = os.path.join(output_dir, ".codylay_state.json")
 
     if not os.path.exists(state_path):
-        console.print("[yellow]No CodeDoc state found for this project.[/yellow]")
+        console.print("[yellow]No CodyLay state found for this project.[/yellow]")
         console.print(f"[dim]Looked in: {state_path}[/dim]")
         return
 
     state = AgentState.load(state_path)
 
-    table = Table(title="CodeDoc Status", box=box.ROUNDED)
+    table = Table(title="CodyLay Status", box=box.ROUNDED)
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
 
@@ -672,7 +672,7 @@ def status(target):
                         f"  [dim]… +{len(diff_result.changes) - 20} more[/dim]"
                     )
                 console.print(
-                    "\n[dim]Run [bold]codedoc .[/bold] to update documentation.[/dim]"
+                    "\n[dim]Run [bold]codylay .[/bold] to update documentation.[/dim]"
                 )
             elif diff_result:
                 console.print(
@@ -706,14 +706,14 @@ def status(target):
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
 def diff(target):
-    """Show what has changed since the last CodeDoc run."""
+    """Show what has changed since the last CodyLay run."""
     target = os.path.abspath(target)
     output_dir = os.path.join(target, "output")
-    state_path = os.path.join(output_dir, ".codedoc_state.json")
+    state_path = os.path.join(output_dir, ".codylay_state.json")
 
     if not os.path.exists(state_path):
-        console.print("[yellow]No previous CodeDoc run found.[/yellow]")
-        console.print("[dim]Run [bold]codedoc .[/bold] first to create documentation.[/dim]")
+        console.print("[yellow]No previous CodyLay run found.[/yellow]")
+        console.print("[dim]Run [bold]codylay .[/bold] first to create documentation.[/dim]")
         return
 
     state = AgentState.load(state_path)
@@ -733,7 +733,7 @@ def diff(target):
             f"no longer exists.[/red]"
         )
         console.print("[dim]This can happen after a rebase or force push.[/dim]")
-        console.print("[dim]Run [bold]codedoc .[/bold] and choose 'Full re-run'.[/dim]")
+        console.print("[dim]Run [bold]codylay .[/bold] and choose 'Full re-run'.[/dim]")
         return
 
     diff_result = git.get_full_diff(state.last_commit)
@@ -825,7 +825,7 @@ def diff(target):
         f"[bold]{len(diff_result.deleted)}[/bold] deletions to handle"
     )
     console.print(
-        "\n[dim]Run [bold]codedoc .[/bold] to update documentation.[/dim]"
+        "\n[dim]Run [bold]codylay .[/bold] to update documentation.[/dim]"
     )
 
     # Show commits
@@ -844,13 +844,13 @@ def diff(target):
 @click.argument("target", default=".", type=click.Path(exists=True))
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def clean(target, yes):
-    """Remove all CodeDoc generated files."""
+    """Remove all CodyLay generated files."""
     target = os.path.abspath(target)
     output_dir = os.path.join(target, "output")
 
     files_to_remove = []
     for fname in [
-        ".codedoc_state.json",
+        ".codylay_state.json",
         "CODEBASE.md",
         "CODEBASE.md.bak",
         "links.json",
@@ -884,9 +884,9 @@ def clean(target, yes):
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
 def init(target):
-    """Create a codedoc.config.json in the target directory."""
+    """Create a codylay.config.json in the target directory."""
     target = os.path.abspath(target)
-    config_path = os.path.join(target, "codedoc.config.json")
+    config_path = os.path.join(target, "codylay.config.json")
 
     if os.path.exists(config_path):
         console.print(f"[yellow]Config already exists: {config_path}[/yellow]")
@@ -914,4 +914,4 @@ def init(target):
         json.dump(default_config, f, indent=2)
 
     console.print(f"[green]Created config:[/green] {config_path}")
-    console.print("[dim]Edit it to customize CodeDoc behaviour for this project.[/dim]")
+    console.print("[dim]Edit it to customize CodyLay behaviour for this project.[/dim]")

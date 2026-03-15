@@ -170,7 +170,7 @@ class Triage:
         if self.llm is None:
             return self.fast_triage(all_files)
 
-        from codedoc.prompts import triage_prompt, system_prompt
+        from codylay.prompts import triage_prompt, system_prompt
 
         sys_prompt = system_prompt(self.config)
         user_prompt = triage_prompt(

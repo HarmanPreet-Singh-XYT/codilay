@@ -67,7 +67,7 @@ class Chunker:
         """
         Args:
             token_counter: callable that takes a string and returns token count
-            config: CodeDocConfig instance
+            config: CodyLayConfig instance
         """
         self.count_tokens = token_counter
         self.threshold = getattr(config, 'chunk_token_threshold', 6000)

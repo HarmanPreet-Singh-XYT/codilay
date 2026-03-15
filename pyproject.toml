@@ -3,14 +3,14 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "codedoc"
+name = "codylay"
 version = "0.1.0"
 description = "AI Agent for Codebase Documentation"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
-    {name = "CodeDoc"},
+    {name = "CodyLay"},
 ]
 keywords = ["documentation", "ai", "llm", "codebase", "agent"]
 classifiers = [
@@ -21,6 +21,12 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Documentation",
 ]
+
+[project.urls]
+Homepage = "https://github.com/HarmanPreet-Singh-XYT/codylay"
+Repository = "https://github.com/HarmanPreet-Singh-XYT/codylay"
+Issues = "https://github.com/HarmanPreet-Singh-XYT/codylay/issues"
+Documentation = "https://github.com/HarmanPreet-Singh-XYT/codylay#readme"
 
 dependencies = [
     "anthropic>=0.39.0",
@@ -37,9 +43,9 @@ dev = [
     "ruff>=0.1.0",
 ]
 
-# THIS IS THE KEY PART — registers the `codedoc` command
+# THIS IS THE KEY PART — registers the `codylay` command
 [project.scripts]
-codedoc = "codedoc.cli:cli"
+codylay = "codylay.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -63,7 +63,7 @@ class Scanner:
             ".git/", ".git/**",
             "node_modules/", "node_modules/**",
             "__pycache__/", "__pycache__/**",
-            ".codedoc_state.json",
+            ".codylay_state.json",
             "output/", "output/**",
             ".venv/", ".venv/**",
             "venv/", "venv/**",

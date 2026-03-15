@@ -1,4 +1,4 @@
-"""Configuration loader for CodeDoc."""
+"""Configuration loader for CodyLay."""
 
 import os
 import json
@@ -7,7 +7,7 @@ from typing import List, Optional
 
 
 @dataclass
-class CodeDocConfig:
+class CodyLayConfig:
     target_path: str = "."
     ignore_patterns: List[str] = field(default_factory=list)
     notes: str = ""
@@ -39,11 +39,11 @@ class CodeDocConfig:
     chunk_overlap_ratio: float = 0.10   # 10% overlap between chunks
 
     @classmethod
-    def load(cls, target_path: str, config_path: Optional[str] = None) -> "CodeDocConfig":
+    def load(cls, target_path: str, config_path: Optional[str] = None) -> "CodyLayConfig":
         config = cls(target_path=target_path)
 
         if config_path is None:
-            config_path = os.path.join(target_path, "codedoc.config.json")
+            config_path = os.path.join(target_path, "codylay.config.json")
 
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:

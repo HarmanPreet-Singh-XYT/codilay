@@ -1,4 +1,4 @@
-"""All LLM prompt templates for CodeDoc."""
+"""All LLM prompt templates for CodyLay."""
 
 
 def system_prompt(config) -> str:
@@ -10,7 +10,7 @@ def system_prompt(config) -> str:
     if config.instructions:
         instructions_section = f"\n\nSpecial instructions:\n{config.instructions}"
 
-    return f"""You are CodeDoc, an AI agent that reads source code files and builds a structured Markdown reference document for a codebase.
+    return f"""You are CodyLay, an AI agent that reads source code files and builds a structured Markdown reference document for a codebase.
 
 Your job is to understand what each file does, how it connects to others, and to incrementally build a doc that gives any reader a complete abstract picture of the system.
 
