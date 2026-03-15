@@ -2,11 +2,15 @@
 CodyLay CLI — the main entry point with git-aware change tracking.
 
 Usage:
-    codylay .
-    codylay /path/to/project
-    codylay . --provider openai --model gpt-4o
-    codylay status .
-    codylay clean .
+    codylay                              Interactive menu
+    codylay .                            Document current directory
+    codylay /path/to/project             Document a specific project
+    codylay . --provider openai          Use OpenAI
+    codylay setup                        First-time setup wizard
+    codylay config                       View settings
+    codylay keys                         Manage API keys
+    codylay status .                     Show doc status
+    codylay clean .                      Remove generated files
 """
 
 import sys
@@ -37,6 +41,7 @@ from codylay.state import AgentState
 from codylay.llm_client import LLMClient, ALL_PROVIDERS
 from codylay.git_tracker import GitTracker, ChangeType
 from codylay.ui import UI
+from codylay.settings import Settings
 
 console = Console()
 
@@ -54,16 +59,50 @@ def common_options(fn):
     return fn
 
 
-@click.group(invoke_without_command=True, context_settings={"allow_interspersed_args": True})
-@click.argument("target", default=".", type=click.Path(exists=True))
+
+class CodyLayGroup(click.Group):
+    """
+    Custom group that resolves ambiguity between a target path and
+    subcommand names.
+
+    - ``codylay``              → interactive menu
+    - ``codylay setup``        → setup subcommand
+    - ``codylay .``            → auto-dispatches to ``run .``
+    - ``codylay /some/path``   → auto-dispatches to ``run /some/path``
+    """
+
+    def resolve_command(self, ctx, args):
+        """
+        Called AFTER the group's own options have been consumed.
+        ``args`` contains only the remaining positional tokens.
+
+        If the first token is NOT a known subcommand, prepend ``run``
+        so Click routes the path as an argument to the ``run`` command.
+        """
+        if args:
+            cmd_name = args[0]
+            if cmd_name not in self.commands and not cmd_name.startswith("-"):
+                args = ["run"] + args
+        return super().resolve_command(ctx, args)
+
+
+@click.group(
+    cls=CodyLayGroup,
+    invoke_without_command=True,
+)
 @common_options
 @click.pass_context
-def cli(ctx, target, config, output, model, provider, base_url, verbose):
+def cli(ctx, config, output, model, provider, base_url, verbose):
     """
     CodyLay — AI Agent for Codebase Documentation.
 
     \b
+    Run with no arguments for the interactive menu, or pass a
+    target path to document directly.
+
+    \b
     Examples:
+        codylay                          Interactive menu
         codylay .                        Document current directory
         codylay /path/to/project         Document a specific project
         codylay . -p openai -m gpt-4o    Use OpenAI
@@ -72,29 +111,40 @@ def cli(ctx, target, config, output, model, provider, base_url, verbose):
         codylay . -p groq                Use Groq
         codylay . -p custom --base-url https://my-llm.com/v1 -m my-model
         codylay . -v                     Verbose mode
+        codylay setup                    First-time setup wizard
+        codylay config                   View current settings
+        codylay keys                     Manage API keys
     """
+    # ── Load persistent settings & inject API keys into env ────────
+    settings = Settings.load()
+    settings.inject_env_vars()
+
     ctx.ensure_object(dict)
-    ctx.obj["target"] = os.path.abspath(target)
+    ctx.obj["settings"] = settings
     ctx.obj["config_path"] = config
     ctx.obj["output"] = output
     ctx.obj["model"] = model
+    # Fall back to stored default if no CLI flag given
     ctx.obj["provider"] = provider
-    ctx.obj["base_url"] = base_url
-    ctx.obj["verbose"] = verbose
+    ctx.obj["base_url"] = base_url or settings.custom_base_url
+    ctx.obj["verbose"] = verbose or settings.verbose
 
     if ctx.invoked_subcommand is None:
-        ctx.invoke(run)
+        # No target and no subcommand → launch interactive menu
+        ctx.invoke(interactive)
 
 
 @cli.command()
+@click.argument("target", default=".", type=click.Path(exists=True))
 @click.pass_context
-def run(ctx):
+def run(ctx, target):
     """Run the documentation agent (default command)."""
-    target = ctx.obj["target"]
+    settings: Settings = ctx.obj["settings"]
+    target = os.path.abspath(target)
     config_path = ctx.obj["config_path"]
     output_dir = ctx.obj["output"]
     model_override = ctx.obj["model"]
-    provider = ctx.obj["provider"]
+    provider = ctx.obj["provider"] or settings.default_provider
     base_url = ctx.obj["base_url"]
     verbose = ctx.obj["verbose"]
 
@@ -121,7 +171,7 @@ def run(ctx):
 
     # ── Resolve paths ────────────────────────────────────────────
     if output_dir is None:
-        output_dir = os.path.join(target, "output")
+        output_dir = os.path.join(target, "codylay")
 
     state_path = os.path.join(output_dir, ".codylay_state.json")
     codebase_md_path = os.path.join(output_dir, "CODEBASE.md")
@@ -143,34 +193,38 @@ def run(ctx):
     mode = "full"
     diff_result = None
 
-    if os.path.exists(state_path) and os.path.exists(codebase_md_path):
+    if os.path.exists(state_path):
         existing_state = AgentState.load(state_path)
+        is_completed = os.path.exists(codebase_md_path)
 
-        # Try git-based diff
-        if git.is_git_repo and existing_state.last_commit:
-            if git.is_commit_valid(existing_state.last_commit):
-                diff_result = git.get_full_diff(existing_state.last_commit)
+        if not is_completed or len(existing_state.queue) > 0:
+            mode = ui.prompt_interrupted_run(existing_state)
+        else:
+            # Completed run found — check for changes
+            if git.is_git_repo and existing_state.last_commit:
+                if git.is_commit_valid(existing_state.last_commit):
+                    diff_result = git.get_full_diff(existing_state.last_commit)
 
-                if diff_result and diff_result.changes:
-                    mode = ui.prompt_rerun_mode_git(diff_result)
-                elif diff_result and not diff_result.changes:
-                    ui.success(
-                        "No changes since last documented commit "
-                        f"([cyan]{existing_state.last_commit_short}[/cyan]). "
-                        "Documentation is up to date!"
-                    )
-                    return
+                    if diff_result and diff_result.changes:
+                        mode = ui.prompt_rerun_mode_git(diff_result)
+                    elif diff_result and not diff_result.changes:
+                        ui.success(
+                            "No changes since last documented commit "
+                            f"([cyan]{existing_state.last_commit_short}[/cyan]). "
+                            "Documentation is up to date!"
+                        )
+                        return
+                    else:
+                        mode = ui.prompt_rerun_mode()
                 else:
+                    ui.warn(
+                        f"Last documented commit "
+                        f"[cyan]{existing_state.last_commit_short}[/cyan] "
+                        f"no longer exists (rebase/force push?)"
+                    )
                     mode = ui.prompt_rerun_mode()
             else:
-                ui.warn(
-                    f"Last documented commit "
-                    f"[cyan]{existing_state.last_commit_short}[/cyan] "
-                    f"no longer exists (rebase/force push?)"
-                )
                 mode = ui.prompt_rerun_mode()
-        else:
-            mode = ui.prompt_rerun_mode()
 
         if mode == "quit":
             ui.info("Exiting.")
@@ -191,6 +245,13 @@ def run(ctx):
     state = existing_state or AgentState(
         run_id=datetime.now(timezone.utc).isoformat()
     )
+
+    # Load existing context if not starting from scratch
+    if mode != "full":
+        wire_mgr.load_state(state.open_wires, state.closed_wires)
+        docstore.load_from_state(state.section_index, state.section_contents)
+        if mode == "resume":
+            ui.info(f"Resuming run [cyan]{state.run_id}[/cyan]")
 
         # ── Phase 1: Bootstrap ───────────────────────────────────────
     ui.phase("Phase 1 · Bootstrap — Scanning codebase")
@@ -315,9 +376,6 @@ def run(ctx):
         # only process changed files
         ui.phase("Applying git changes to existing documentation")
 
-        wire_mgr.load_state(state.open_wires, state.closed_wires)
-        docstore.load_from_state(state.section_index, state.section_contents)
-
         rename_count = 0
         delete_count = 0
 
@@ -378,8 +436,6 @@ def run(ctx):
         ui.info(f"[bold]{len(files_to_process)}[/bold] files to re-process")
 
     elif mode == "update":
-        wire_mgr.load_state(state.open_wires, state.closed_wires)
-        docstore.load_from_state(state.section_index, state.section_contents)
         changed = scanner.get_changed_files(state.processed)
         if not changed:
             ui.success("No changed files. Documentation is up to date!")
@@ -392,8 +448,6 @@ def run(ctx):
         )
 
     elif mode == "specific":
-        wire_mgr.load_state(state.open_wires, state.closed_wires)
-        docstore.load_from_state(state.section_index, state.section_contents)
         specific = ui.prompt_specific_files(all_files)
         if not specific:
             ui.error("No valid files selected.")
@@ -403,25 +457,30 @@ def run(ctx):
         docstore.invalidate_sections_for_files(specific)
 
     # ── Phase 2: Planning ────────────────────────────────────────
-    ui.phase("Phase 2 · Planning — Determining processing order")
+    if mode != "resume":
+        ui.phase("Phase 2 · Planning — Determining processing order")
 
-    planner = Planner(llm, cfg)
+        planner = Planner(llm, cfg)
 
-    with ui.spinner("LLM is analysing the file structure…"):
-        plan = planner.plan(file_tree_text, md_contents, files_to_process, state)
+        with ui.spinner("LLM is analysing the file structure…"):
+            plan = planner.plan(file_tree_text, md_contents, files_to_process, state)
 
-    state.queue = plan["order"]
-    state.parked = plan.get("parked", []) if mode == "full" else state.parked
-    state.park_reasons = plan.get("park_reasons", {}) if mode == "full" else state.park_reasons
-    skeleton = plan["skeleton"]
+        state.queue = plan["order"]
+        state.parked = plan.get("parked", []) if mode == "full" else state.parked
+        state.park_reasons = plan.get("park_reasons", {}) if mode == "full" else state.park_reasons
+        skeleton = plan["skeleton"]
 
-    ui.show_plan(state.queue, state.parked, skeleton)
+        ui.show_plan(state.queue, state.parked, skeleton)
 
-    if mode == "full":
-        docstore.initialize_skeleton(
-            skeleton.get("doc_title", "Codebase Reference"),
-            skeleton.get("suggested_sections", []),
-        )
+        if mode == "full":
+            docstore.initialize_skeleton(
+                skeleton.get("doc_title", "Codebase Reference"),
+                skeleton.get("suggested_sections", []),
+            )
+    else:
+        # In resume mode, we already have a queue and skeleton in docstore
+        ui.phase("Phase 2 · Resuming — Skipping planning")
+        ui.show_plan(state.queue, state.parked, {})
 
     # ── Phase 3: Processing Loop ─────────────────────────────────
     ui.phase("Phase 3 · Processing — Reading files and building docs")
@@ -624,7 +683,7 @@ def _finalize_and_write(
 def status(target):
     """Show current CodyLay state for a project."""
     target = os.path.abspath(target)
-    output_dir = os.path.join(target, "output")
+    output_dir = os.path.join(target, "codylay")
     state_path = os.path.join(output_dir, ".codylay_state.json")
 
     if not os.path.exists(state_path):
@@ -708,7 +767,7 @@ def status(target):
 def diff(target):
     """Show what has changed since the last CodyLay run."""
     target = os.path.abspath(target)
-    output_dir = os.path.join(target, "output")
+    output_dir = os.path.join(target, "codylay")
     state_path = os.path.join(output_dir, ".codylay_state.json")
 
     if not os.path.exists(state_path):
@@ -846,7 +905,7 @@ def diff(target):
 def clean(target, yes):
     """Remove all CodyLay generated files."""
     target = os.path.abspath(target)
-    output_dir = os.path.join(target, "output")
+    output_dir = os.path.join(target, "codylay")
 
     files_to_remove = []
     for fname in [
@@ -915,3 +974,61 @@ def init(target):
 
     console.print(f"[green]Created config:[/green] {config_path}")
     console.print("[dim]Edit it to customize CodyLay behaviour for this project.[/dim]")
+
+
+# ─── Interactive menu ─────────────────────────────────────────────────────────
+
+@cli.command(hidden=True)
+@click.pass_context
+def interactive(ctx):
+    """Launch the interactive application menu."""
+    from codylay.menu import main_menu
+
+    settings: Settings = ctx.obj["settings"]
+    result = main_menu(settings)
+
+    if result and result.get("action") == "run":
+        # Re-inject env vars in case keys were added during the menu session
+        settings.inject_env_vars()
+
+        ctx.obj["provider"] = result.get("provider") or settings.default_provider
+        ctx.obj["model"] = result.get("model")
+        ctx.obj["base_url"] = result.get("base_url") or settings.custom_base_url
+        ctx.obj["verbose"] = result.get("verbose", settings.verbose)
+        ctx.invoke(run, target=result["target"])
+
+
+# ─── Setup wizard ─────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.pass_context
+def setup(ctx):
+    """Run the first-time setup wizard (configure API keys, provider, model)."""
+    from codylay.menu import _menu_setup
+
+    settings: Settings = ctx.obj["settings"]
+    _menu_setup(settings)
+
+
+# ─── Config viewer ────────────────────────────────────────────────────────────
+
+@cli.command("config")
+@click.pass_context
+def show_config(ctx):
+    """View all current CodyLay settings."""
+    from codylay.menu import _menu_view_settings
+
+    settings: Settings = ctx.obj["settings"]
+    _menu_view_settings(settings)
+
+
+# ─── Key management ──────────────────────────────────────────────────────────
+
+@cli.command()
+@click.pass_context
+def keys(ctx):
+    """Manage stored API keys (add, view, remove)."""
+    from codylay.menu import _menu_api_keys
+
+    settings: Settings = ctx.obj["settings"]
+    _menu_api_keys(settings)

@@ -10,10 +10,12 @@ src/codylay/config.py
 src/codylay/docstore.py
 src/codylay/git_tracker.py
 src/codylay/llm_client.py
+src/codylay/menu.py
 src/codylay/planner.py
 src/codylay/processor.py
 src/codylay/prompts.py
 src/codylay/scanner.py
+src/codylay/settings.py
 src/codylay/state.py
 src/codylay/triage.py
 src/codylay/ui.py

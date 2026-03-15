@@ -207,6 +207,36 @@ class UI:
             choice, "quit"
         )
 
+    def prompt_interrupted_run(self, state) -> str:
+        """Prompt user when an interrupted run is detected."""
+        self.console.print()
+        
+        processed = len(state.processed)
+        remaining = len(state.queue)
+        total = processed + remaining
+        
+        panel_text = (
+            f"[bold]CodyLay detected an interrupted run.[/bold]\n\n"
+            f"  • Processed: [green]{processed}[/green] files\n"
+            f"  • Remaining: [yellow]{remaining}[/yellow] files\n"
+            f"  • Total planned: {total} files\n\n"
+            "What would you like to do?\n\n"
+            "  [cyan][1][/cyan] Resume where you left off\n"
+            "  [cyan][2][/cyan] Start fresh (full re-run)\n"
+            "  [cyan][q][/cyan] Quit"
+        )
+        
+        self.console.print(
+            Panel(
+                panel_text,
+                border_style="orange3",
+                title="[bold orange3]Interrupted Run Found[/bold orange3]",
+            )
+        )
+        
+        choice = Prompt.ask("Choice", choices=["1", "2", "q"], default="1")
+        return {"1": "resume", "2": "full", "q": "quit"}.get(choice, "quit")
+
     def prompt_rerun_mode(self) -> str:
         """Fallback re-run prompt when git is not available."""
         self.console.print()
