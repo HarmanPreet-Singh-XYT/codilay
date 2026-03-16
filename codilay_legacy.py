@@ -6,18 +6,13 @@ CLI entry point.
 
 import sys
 import os
-import time
 import json
-from pathlib import Path
 from datetime import datetime, timezone
 
 import click
 from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt, IntPrompt
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.table import Table
-from rich.markdown import Markdown
 from rich import box
 
 # Add project root to path

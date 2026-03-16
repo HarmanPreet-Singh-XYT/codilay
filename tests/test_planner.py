@@ -1,5 +1,4 @@
 from unittest.mock import MagicMock
-import pytest
 from codilay.planner import Planner
 from codilay.config import CodiLayConfig
 from codilay.state import AgentState

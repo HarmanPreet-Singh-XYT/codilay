@@ -320,7 +320,6 @@ class Triage:
 
         for f in result.core + result.skim:
             parts = f.split("/")
-            basename = os.path.basename(f)
 
             # Never process files inside node_modules, .git, etc.
             if any(p in ALWAYS_SKIP_DIRS for p in parts[:-1]):

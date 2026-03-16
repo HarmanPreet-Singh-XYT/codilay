@@ -6,18 +6,16 @@ beautiful interactive menu to set up, configure, and run documentation tasks.
 """
 
 import os
-import sys
 from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.prompt import Prompt, IntPrompt, Confirm
-from rich.text import Text
+from rich.prompt import Prompt, Confirm
 from rich import box
 
 from codilay.settings import (
-    Settings, PROVIDER_META, DEFAULT_MODELS, SETTINGS_DIR, SETTINGS_FILE,
+    Settings, PROVIDER_META, DEFAULT_MODELS, SETTINGS_FILE,
 )
 
 console = Console()
@@ -347,7 +345,7 @@ def _prompt_api_key(settings: Settings, provider: str) -> Optional[str]:
         return "back"
     if key.strip():
         settings.set_api_key(provider, key.strip())
-        console.print(f"[green]✓[/green] API key saved securely\n")
+        console.print("[green]✓[/green] API key saved securely\n")
     else:
         console.print("[yellow]⚠  No key entered[/yellow]\n")
     return None

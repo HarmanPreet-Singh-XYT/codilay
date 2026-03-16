@@ -497,7 +497,7 @@ class ChatStore:
 
         Returns the section_id on success, None on failure.
         """
-        from codilay.prompts import promote_to_doc_prompt, system_prompt
+        from codilay.prompts import promote_to_doc_prompt
 
         msg = self.get_message(conv_id, msg_id)
         if msg is None or msg["role"] != "assistant":

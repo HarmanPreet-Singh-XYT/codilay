@@ -13,7 +13,7 @@ Flow:
 
 import re
 import os
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -157,10 +157,6 @@ class Chunker:
         """
         skeleton_lines = []
         in_body = False
-        brace_depth = 0
-        indent_depth = 0  # For Python
-        skip_until_dedent = False
-        current_indent = 0
 
         for i, line in enumerate(lines):
             stripped = line.strip()

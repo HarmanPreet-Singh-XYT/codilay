@@ -2,7 +2,6 @@
 
 import fnmatch
 from contextlib import contextmanager
-from typing import List, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -397,7 +396,7 @@ class UI:
             for f in skip_files[:5]:
                 self.console.print(f"    [dim]✗ {f}[/dim]")
             if len(skip_dirs) > 15 or len(skip_files) > 5:
-                self.console.print(f"    [dim]… and more[/dim]")
+                self.console.print("    [dim]… and more[/dim]")
 
         # Skim summary
         if triage_result.skim:
@@ -435,7 +434,7 @@ class UI:
                     f"[dim]({count} files)[/dim]"
                 )
             if len(core_dirs) > 15:
-                self.console.print(f"    [dim]… and more[/dim]")
+                self.console.print("    [dim]… and more[/dim]")
 
         # Token savings estimate
         if triage_result.token_estimate_saved > 0:

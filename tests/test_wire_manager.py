@@ -1,4 +1,3 @@
-import pytest
 from codilay.wire_manager import WireManager
 
 def test_wire_lifecycle():

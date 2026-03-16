@@ -8,7 +8,7 @@ from codilay.llm_client import LLMClient
 from codilay.wire_manager import WireManager
 from codilay.docstore import DocStore
 from codilay.state import AgentState
-from codilay.chunker import Chunker, ChunkType
+from codilay.chunker import Chunker
 from codilay.prompts import (
     system_prompt,
     processing_prompt,

@@ -11,8 +11,8 @@ No external dependencies — pure Python implementation.
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 
 # ── Scored result ─────────────────────────────────────────────────────────────

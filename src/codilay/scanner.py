@@ -4,7 +4,6 @@ import os
 import subprocess
 import hashlib
 from typing import List, Optional, Dict
-from pathlib import Path
 
 import pathspec
 
@@ -240,7 +239,6 @@ class Scanner:
         return [f for f in all_files if f not in processed_set]
     def get_file_hash(self, filepath: str) -> Optional[str]:
         """Get a hash of a file's contents for change detection fallback."""
-        import hashlib
         try:
             with open(filepath, "rb") as f:
                 return hashlib.md5(f.read()).hexdigest()

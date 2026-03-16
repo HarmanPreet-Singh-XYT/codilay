@@ -1,4 +1,3 @@
-import pytest
 from codilay.docstore import DocStore
 
 def test_docstore_skeleton():
