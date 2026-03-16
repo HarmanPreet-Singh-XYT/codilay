@@ -36,7 +36,12 @@ class Processor:
         self.docstore = docstore
         self.state = state
         self.ui = ui
-        self._sys_prompt = system_prompt(config)
+        self._sys_prompt = system_prompt(
+            config,
+            response_style=getattr(config, "response_style", "technical"),
+            detail_level=getattr(config, "detail_level", "standard"),
+            include_examples=getattr(config, "include_examples", True),
+        )
         self.chunker = Chunker(
             token_counter=llm.count_tokens,
             config=config,

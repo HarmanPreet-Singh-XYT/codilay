@@ -543,63 +543,76 @@ def _menu_provider_model(settings: Settings):
 
 
 def _menu_preferences(settings: Settings):
-    """Tweak global CodiLay preferences."""
+    """Tweak global CodiLay preferences — organised into sub-sections."""
     while True:
         _clear()
         _header("Preferences")
 
-        console.print("[bold]Current settings:[/bold]\n")
-        console.print(
-            f"  [bold cyan][1][/bold cyan] Verbose output:      [bold]{'Yes' if settings.verbose else 'No'}[/bold]"
-        )
-        console.print(
-            f"  [bold cyan][2][/bold cyan] Triage mode:         [bold]{settings.triage_mode}[/bold]  [dim](smart | fast | none)[/dim]"
-        )
-        console.print(
-            f"  [bold cyan][3][/bold cyan] Include test files:  [bold]{'Yes' if settings.include_tests else 'No'}[/bold]"
-        )
-        console.print(f"  [bold cyan][4][/bold cyan] Max tokens per call: [bold]{settings.max_tokens_per_call}[/bold]")
-        console.print(
-            f"  [bold cyan][5][/bold cyan] Parallel processing: [bold]{'Yes' if settings.parallel else 'No'}[/bold]"
-        )
-        console.print(f"  [bold cyan][6][/bold cyan] Max parallel workers: [bold]{settings.max_workers}[/bold]")
-        console.print()
-        console.print("  [bold cyan][0][/bold cyan] ← Back to main menu")
+        menu = Table(show_header=False, box=None, padding=(0, 2))
+        menu.add_column("key", style="bold cyan", width=6, justify="right")
+        menu.add_column("action")
+
+        menu.add_row("[1]", "🤖  LLM & API — tokens, workers, streaming")
+        menu.add_row("[2]", "📝  Documentation Style — response style, detail, examples")
+        menu.add_row("[3]", "📂  Doc Output Location — where CODEBASE.md is stored")
+        menu.add_row("[4]", "🔬  Triage Defaults — tests, mode, large file threshold")
+        menu.add_row("[5]", "👁   Watch Mode — debounce, auto-open UI, extensions")
+        menu.add_row("[6]", "📤  Export Defaults — format, token budget")
+        menu.add_row("[7]", "🌐  Web UI — port, auto-open browser")
+        menu.add_row("[0]", "← Back to main menu")
+
+        console.print(menu)
         console.print()
 
         choice = Prompt.ask(
-            "Which setting to change?",
-            choices=["0", "1", "2", "3", "4", "5", "6"],
+            "Which section?",
+            choices=["0", "1", "2", "3", "4", "5", "6", "7"],
             default="0",
         )
 
         if choice == "0":
             return
+        elif choice == "1":
+            _prefs_llm(settings)
+        elif choice == "2":
+            _prefs_doc_style(settings)
+        elif choice == "3":
+            _prefs_doc_output(settings)
+        elif choice == "4":
+            _prefs_triage(settings)
+        elif choice == "5":
+            _prefs_watch(settings)
+        elif choice == "6":
+            _prefs_export(settings)
+        elif choice == "7":
+            _prefs_web_ui(settings)
+
+
+# ── Preferences sub-sections ─────────────────────────────────────────────────
+
+
+def _prefs_llm(settings: Settings):
+    """LLM & API preferences."""
+    while True:
+        _clear()
+        _header("Preferences · LLM & API")
+
+        console.print("[bold]Current settings:[/bold]\n")
+        console.print(f"  [bold cyan][1][/bold cyan] Max tokens per call:  [bold]{settings.max_tokens_per_call}[/bold]")
+        console.print(
+            f"  [bold cyan][2][/bold cyan] Parallel processing:  [bold]{'Yes' if settings.parallel else 'No'}[/bold]"
+        )
+        console.print(f"  [bold cyan][3][/bold cyan] Max parallel workers: [bold]{settings.max_workers}[/bold]")
+        console.print()
+        console.print("  [bold cyan][0][/bold cyan] ← Back")
+        console.print()
+
+        choice = Prompt.ask("Which setting?", choices=["0", "1", "2", "3"], default="0")
+
+        if choice == "0":
+            return
 
         elif choice == "1":
-            settings.verbose = not settings.verbose
-            settings.save()
-            state = "ON" if settings.verbose else "OFF"
-            console.print(f"\n[green]✓[/green] Verbose output: [bold]{state}[/bold]")
-            _pause()
-
-        elif choice == "2":
-            modes = ["smart", "fast", "none"]
-            current_idx = modes.index(settings.triage_mode) if settings.triage_mode in modes else 0
-            next_idx = (current_idx + 1) % len(modes)
-            settings.triage_mode = modes[next_idx]
-            settings.save()
-            console.print(f"\n[green]✓[/green] Triage mode: [bold]{settings.triage_mode}[/bold]")
-            _pause()
-
-        elif choice == "3":
-            settings.include_tests = not settings.include_tests
-            settings.save()
-            state = "ON" if settings.include_tests else "OFF"
-            console.print(f"\n[green]✓[/green] Include test files: [bold]{state}[/bold]")
-            _pause()
-
-        elif choice == "4":
             raw = Prompt.ask(
                 f"  Max tokens per LLM call [dim](currently {settings.max_tokens_per_call}, 0 to cancel)[/dim]",
                 default=str(settings.max_tokens_per_call),
@@ -608,23 +621,23 @@ def _menu_preferences(settings: Settings):
                 continue
             try:
                 tokens = int(raw)
-                settings.max_tokens_per_call = max(1024, min(tokens, 1000000))
+                settings.max_tokens_per_call = max(1024, min(tokens, 1_000_000))
                 settings.save()
                 console.print(f"\n[green]✓[/green] Max tokens: [bold]{settings.max_tokens_per_call}[/bold]")
             except ValueError:
                 console.print("[yellow]Invalid number[/yellow]")
             _pause()
 
-        elif choice == "5":
+        elif choice == "2":
             settings.parallel = not settings.parallel
             settings.save()
             state = "ON" if settings.parallel else "OFF"
             console.print(f"\n[green]✓[/green] Parallel processing: [bold]{state}[/bold]")
             _pause()
 
-        elif choice == "6":
+        elif choice == "3":
             raw = Prompt.ask(
-                f"  Max parallel workers [dim](currently {settings.max_workers}, 1-16, 0 to cancel)[/dim]",
+                f"  Max parallel workers [dim](currently {settings.max_workers}, 1–16, 0 to cancel)[/dim]",
                 default=str(settings.max_workers),
             )
             if _is_back(raw):
@@ -639,6 +652,336 @@ def _menu_preferences(settings: Settings):
             _pause()
 
 
+def _prefs_doc_style(settings: Settings):
+    """Documentation style preferences."""
+    while True:
+        _clear()
+        _header("Preferences · Documentation Style")
+
+        console.print("[bold]Current settings:[/bold]\n")
+        console.print(
+            f"  [bold cyan][1][/bold cyan] Response style:   [bold]{settings.response_style}[/bold]"
+            "  [dim](balanced | code-first | explanation-first)[/dim]"
+        )
+        console.print(
+            f"  [bold cyan][2][/bold cyan] Detail level:     [bold]{settings.detail_level}[/bold]"
+            "  [dim](standard | terse | detailed)[/dim]"
+        )
+        console.print(
+            f"  [bold cyan][3][/bold cyan] Include examples: [bold]{'Yes' if settings.include_examples else 'No'}[/bold]"
+        )
+        console.print(
+            f"  [bold cyan][4][/bold cyan] Verbose output:   [bold]{'Yes' if settings.verbose else 'No'}[/bold]"
+        )
+        console.print()
+        console.print("  [bold cyan][0][/bold cyan] ← Back")
+        console.print()
+
+        choice = Prompt.ask("Which setting?", choices=["0", "1", "2", "3", "4"], default="0")
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            styles = ["balanced", "code-first", "explanation-first"]
+            _cycle_setting(settings, "response_style", styles, "Response style")
+
+        elif choice == "2":
+            levels = ["standard", "terse", "detailed"]
+            _cycle_setting(settings, "detail_level", levels, "Detail level")
+
+        elif choice == "3":
+            settings.include_examples = not settings.include_examples
+            settings.save()
+            state = "ON" if settings.include_examples else "OFF"
+            console.print(f"\n[green]✓[/green] Include examples: [bold]{state}[/bold]")
+            _pause()
+
+        elif choice == "4":
+            settings.verbose = not settings.verbose
+            settings.save()
+            state = "ON" if settings.verbose else "OFF"
+            console.print(f"\n[green]✓[/green] Verbose output: [bold]{state}[/bold]")
+            _pause()
+
+
+def _prefs_doc_output(settings: Settings):
+    """Doc output location preference."""
+    _clear()
+    _header("Preferences · Doc Output Location")
+
+    location_labels = {
+        "codilay": "codilay/CODEBASE.md  (commit docs, gitignore state/chat)",
+        "docs": "docs/CODEBASE.md     (docs separate, codilay/ fully gitignored)",
+        "local": "gitignore everything  (local tool only, nothing committed)",
+    }
+
+    console.print("[bold]Where should generated docs be stored?[/bold]\n")
+    console.print(
+        f"  [bold cyan][1][/bold cyan] codilay/CODEBASE.md   "
+        f"[dim]commit docs, gitignore chat/state[/dim]"
+        + ("  [bold yellow]← current[/bold yellow]" if settings.doc_output_location == "codilay" else "")
+    )
+    console.print(
+        f"  [bold cyan][2][/bold cyan] docs/CODEBASE.md      "
+        f"[dim]docs in docs/, codilay/ fully ignored[/dim]"
+        + ("  [bold yellow]← current[/bold yellow]" if settings.doc_output_location == "docs" else "")
+    )
+    console.print(
+        f"  [bold cyan][3][/bold cyan] gitignore everything  "
+        f"[dim]local tool only, nothing committed[/dim]"
+        + ("  [bold yellow]← current[/bold yellow]" if settings.doc_output_location == "local" else "")
+    )
+    console.print()
+    console.print("  [bold cyan][0][/bold cyan] ← Back (no change)")
+    console.print()
+
+    choice = Prompt.ask("Select", choices=["0", "1", "2", "3"], default="0")
+
+    if choice == "0":
+        return
+
+    loc_map = {"1": "codilay", "2": "docs", "3": "local"}
+    settings.doc_output_location = loc_map[choice]
+    settings.save()
+    console.print(
+        f"\n[green]✓[/green] Doc output location: [bold]{location_labels[settings.doc_output_location]}[/bold]"
+    )
+    console.print(
+        "\n[dim]Tip: Run [bold]codilay init .[/bold] in your project to write the matching "
+        ".gitignore entries automatically.[/dim]"
+    )
+    _pause()
+
+
+def _prefs_triage(settings: Settings):
+    """Triage defaults preferences."""
+    while True:
+        _clear()
+        _header("Preferences · Triage Defaults")
+
+        console.print("[bold]Current settings:[/bold]\n")
+        console.print(
+            f"  [bold cyan][1][/bold cyan] Triage mode:            [bold]{settings.triage_mode}[/bold]"
+            "  [dim](smart | fast | none)[/dim]"
+        )
+        console.print(
+            f"  [bold cyan][2][/bold cyan] Include test files:     [bold]{'Yes' if settings.include_tests else 'No'}[/bold]"
+        )
+        threshold_display = str(settings.large_file_threshold) if settings.large_file_threshold else "default (6000)"
+        console.print(f"  [bold cyan][3][/bold cyan] Large file threshold:   [bold]{threshold_display}[/bold] tokens")
+        console.print()
+        console.print("  [bold cyan][0][/bold cyan] ← Back")
+        console.print()
+
+        choice = Prompt.ask("Which setting?", choices=["0", "1", "2", "3"], default="0")
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            modes = ["smart", "fast", "none"]
+            _cycle_setting(settings, "triage_mode", modes, "Triage mode")
+
+        elif choice == "2":
+            settings.include_tests = not settings.include_tests
+            settings.save()
+            state = "ON" if settings.include_tests else "OFF"
+            console.print(f"\n[green]✓[/green] Include test files: [bold]{state}[/bold]")
+            _pause()
+
+        elif choice == "3":
+            current = str(settings.large_file_threshold) if settings.large_file_threshold else ""
+            raw = Prompt.ask(
+                f"  Token threshold [dim](currently {threshold_display}, blank = use default, 0 to cancel)[/dim]",
+                default=current,
+            )
+            if _is_back(raw):
+                continue
+            if raw.strip() == "":
+                settings.large_file_threshold = None
+                settings.save()
+                console.print("[green]✓[/green] Large file threshold reset to default (6000 tokens)")
+            else:
+                try:
+                    val = int(raw)
+                    settings.large_file_threshold = max(500, val)
+                    settings.save()
+                    console.print(
+                        f"\n[green]✓[/green] Large file threshold: [bold]{settings.large_file_threshold}[/bold] tokens"
+                    )
+                except ValueError:
+                    console.print("[yellow]Invalid number[/yellow]")
+            _pause()
+
+
+def _prefs_watch(settings: Settings):
+    """Watch mode preferences."""
+    while True:
+        _clear()
+        _header("Preferences · Watch Mode")
+
+        ext_display = ", ".join(settings.watch_extensions) if settings.watch_extensions else "default"
+        console.print("[bold]Current settings:[/bold]\n")
+        console.print(
+            f"  [bold cyan][1][/bold cyan] Debounce delay:       [bold]{settings.watch_debounce_seconds}s[/bold]"
+        )
+        console.print(
+            f"  [bold cyan][2][/bold cyan] Auto-open Web UI:     [bold]{'Yes' if settings.watch_auto_open_ui else 'No'}[/bold]"
+        )
+        console.print(f"  [bold cyan][3][/bold cyan] Extra watch extensions: [bold]{ext_display}[/bold]")
+        console.print()
+        console.print("  [bold cyan][0][/bold cyan] ← Back")
+        console.print()
+
+        choice = Prompt.ask("Which setting?", choices=["0", "1", "2", "3"], default="0")
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            raw = Prompt.ask(
+                f"  Debounce delay in seconds [dim](currently {settings.watch_debounce_seconds}, 0 to cancel)[/dim]",
+                default=str(settings.watch_debounce_seconds),
+            )
+            if _is_back(raw):
+                continue
+            try:
+                val = float(raw)
+                settings.watch_debounce_seconds = max(0.1, min(val, 60.0))
+                settings.save()
+                console.print(f"\n[green]✓[/green] Debounce delay: [bold]{settings.watch_debounce_seconds}s[/bold]")
+            except ValueError:
+                console.print("[yellow]Invalid number[/yellow]")
+            _pause()
+
+        elif choice == "2":
+            settings.watch_auto_open_ui = not settings.watch_auto_open_ui
+            settings.save()
+            state = "ON" if settings.watch_auto_open_ui else "OFF"
+            console.print(f"\n[green]✓[/green] Auto-open Web UI: [bold]{state}[/bold]")
+            _pause()
+
+        elif choice == "3":
+            console.print(
+                "\n  Enter extra file extensions to watch, comma-separated.\n"
+                "  [dim]Example: .env,.graphql,.prisma  (include the dot)[/dim]\n"
+                "  [dim]Leave blank to clear / use defaults.  Enter 0 to cancel.[/dim]\n"
+            )
+            raw = Prompt.ask(
+                "  Extensions",
+                default=", ".join(settings.watch_extensions),
+            )
+            if _is_back(raw):
+                continue
+            exts = [e.strip() for e in raw.split(",") if e.strip()]
+            settings.watch_extensions = exts
+            settings.save()
+            display = ", ".join(exts) if exts else "default"
+            console.print(f"\n[green]✓[/green] Watch extensions: [bold]{display}[/bold]")
+            _pause()
+
+
+def _prefs_export(settings: Settings):
+    """Export defaults preferences."""
+    while True:
+        _clear()
+        _header("Preferences · Export Defaults")
+
+        console.print("[bold]Current settings:[/bold]\n")
+        console.print(
+            f"  [bold cyan][1][/bold cyan] Default format:    [bold]{settings.export_default_format}[/bold]"
+            "  [dim](compact | structured | narrative)[/dim]"
+        )
+        console.print(f"  [bold cyan][2][/bold cyan] Default token budget: [bold]{settings.export_max_tokens:,}[/bold]")
+        console.print()
+        console.print("  [bold cyan][0][/bold cyan] ← Back")
+        console.print()
+
+        choice = Prompt.ask("Which setting?", choices=["0", "1", "2"], default="0")
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            formats = ["compact", "structured", "narrative"]
+            _cycle_setting(settings, "export_default_format", formats, "Default export format")
+
+        elif choice == "2":
+            raw = Prompt.ask(
+                f"  Token budget [dim](currently {settings.export_max_tokens:,}, 0 to cancel)[/dim]",
+                default=str(settings.export_max_tokens),
+            )
+            if _is_back(raw):
+                continue
+            try:
+                val = int(raw.replace(",", ""))
+                settings.export_max_tokens = max(1000, val)
+                settings.save()
+                console.print(f"\n[green]✓[/green] Token budget: [bold]{settings.export_max_tokens:,}[/bold]")
+            except ValueError:
+                console.print("[yellow]Invalid number[/yellow]")
+            _pause()
+
+
+def _prefs_web_ui(settings: Settings):
+    """Web UI preferences."""
+    while True:
+        _clear()
+        _header("Preferences · Web UI")
+
+        console.print("[bold]Current settings:[/bold]\n")
+        console.print(f"  [bold cyan][1][/bold cyan] Default port:         [bold]{settings.web_ui_port}[/bold]")
+        console.print(
+            f"  [bold cyan][2][/bold cyan] Auto-open browser:    [bold]{'Yes' if settings.web_ui_auto_open_browser else 'No'}[/bold]"
+        )
+        console.print()
+        console.print("  [bold cyan][0][/bold cyan] ← Back")
+        console.print()
+
+        choice = Prompt.ask("Which setting?", choices=["0", "1", "2"], default="0")
+
+        if choice == "0":
+            return
+
+        elif choice == "1":
+            raw = Prompt.ask(
+                f"  Port [dim](currently {settings.web_ui_port}, 1024–65535, 0 to cancel)[/dim]",
+                default=str(settings.web_ui_port),
+            )
+            if _is_back(raw):
+                continue
+            try:
+                port = int(raw)
+                if 1024 <= port <= 65535:
+                    settings.web_ui_port = port
+                    settings.save()
+                    console.print(f"\n[green]✓[/green] Port: [bold]{settings.web_ui_port}[/bold]")
+                else:
+                    console.print("[yellow]Port must be between 1024 and 65535[/yellow]")
+            except ValueError:
+                console.print("[yellow]Invalid number[/yellow]")
+            _pause()
+
+        elif choice == "2":
+            settings.web_ui_auto_open_browser = not settings.web_ui_auto_open_browser
+            settings.save()
+            state = "ON" if settings.web_ui_auto_open_browser else "OFF"
+            console.print(f"\n[green]✓[/green] Auto-open browser: [bold]{state}[/bold]")
+            _pause()
+
+
+def _cycle_setting(settings: Settings, attr: str, options: list, label: str):
+    """Cycle through a list of options for a settings attribute."""
+    current = getattr(settings, attr, options[0])
+    current_idx = options.index(current) if current in options else 0
+    next_idx = (current_idx + 1) % len(options)
+    setattr(settings, attr, options[next_idx])
+    settings.save()
+    console.print(f"\n[green]✓[/green] {label}: [bold]{getattr(settings, attr)}[/bold]")
+    _pause()
+
+
 # ── 6. View Settings ─────────────────────────────────────────────────────────
 
 
@@ -647,8 +990,8 @@ def _menu_view_settings(settings: Settings):
     _clear()
     _header("Current Settings")
 
-    # General
-    table = Table(title="Configuration", box=box.ROUNDED, title_style="bold cyan")
+    # ── LLM & General ────────────────────────────────────────────────────────
+    table = Table(title="LLM & General", box=box.ROUNDED, title_style="bold cyan")
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="bold")
 
@@ -656,8 +999,6 @@ def _menu_view_settings(settings: Settings):
     table.add_row("Default provider", PROVIDER_META.get(prov, {}).get("label", prov))
     table.add_row("Default model", settings.get_effective_model() or "—")
     table.add_row("Verbose", "Yes" if settings.verbose else "No")
-    table.add_row("Triage mode", settings.triage_mode)
-    table.add_row("Include tests", "Yes" if settings.include_tests else "No")
     table.add_row("Max tokens/call", str(settings.max_tokens_per_call))
     table.add_row("Parallel processing", "Yes" if settings.parallel else "No")
     table.add_row("Max parallel workers", str(settings.max_workers))
@@ -667,7 +1008,69 @@ def _menu_view_settings(settings: Settings):
 
     console.print(table)
 
-    # Keys
+    # ── Documentation style ───────────────────────────────────────────────────
+    console.print()
+    style_table = Table(title="Documentation Style", box=box.ROUNDED, title_style="bold cyan")
+    style_table.add_column("Setting", style="cyan")
+    style_table.add_column("Value", style="bold")
+
+    style_table.add_row("Response style", settings.response_style)
+    style_table.add_row("Detail level", settings.detail_level)
+    style_table.add_row("Include examples", "Yes" if settings.include_examples else "No")
+    style_table.add_row("Doc output location", settings.doc_output_location)
+
+    console.print(style_table)
+
+    # ── Triage ────────────────────────────────────────────────────────────────
+    console.print()
+    triage_table = Table(title="Triage Defaults", box=box.ROUNDED, title_style="bold cyan")
+    triage_table.add_column("Setting", style="cyan")
+    triage_table.add_column("Value", style="bold")
+
+    triage_table.add_row("Triage mode", settings.triage_mode)
+    triage_table.add_row("Include tests", "Yes" if settings.include_tests else "No")
+    large = str(settings.large_file_threshold) if settings.large_file_threshold is not None else "default"
+    triage_table.add_row("Large file threshold (tokens)", large)
+
+    console.print(triage_table)
+
+    # ── Watch mode ────────────────────────────────────────────────────────────
+    console.print()
+    watch_table = Table(title="Watch Mode", box=box.ROUNDED, title_style="bold cyan")
+    watch_table.add_column("Setting", style="cyan")
+    watch_table.add_column("Value", style="bold")
+
+    watch_table.add_row("Debounce (seconds)", str(settings.watch_debounce_seconds))
+    watch_table.add_row("Auto-open UI", "Yes" if settings.watch_auto_open_ui else "No")
+    exts = ", ".join(settings.watch_extensions) if settings.watch_extensions else "(defaults)"
+    watch_table.add_row("Watch extensions", exts)
+
+    console.print(watch_table)
+
+    # ── Export ────────────────────────────────────────────────────────────────
+    console.print()
+    export_table = Table(title="Export Defaults", box=box.ROUNDED, title_style="bold cyan")
+    export_table.add_column("Setting", style="cyan")
+    export_table.add_column("Value", style="bold")
+
+    export_table.add_row("Default format", settings.export_default_format)
+    max_tok = str(settings.export_max_tokens) if settings.export_max_tokens > 0 else "no limit"
+    export_table.add_row("Max tokens", max_tok)
+
+    console.print(export_table)
+
+    # ── Web UI ────────────────────────────────────────────────────────────────
+    console.print()
+    webui_table = Table(title="Web UI", box=box.ROUNDED, title_style="bold cyan")
+    webui_table.add_column("Setting", style="cyan")
+    webui_table.add_column("Value", style="bold")
+
+    webui_table.add_row("Default port", str(settings.web_ui_port))
+    webui_table.add_row("Auto-open browser", "Yes" if settings.web_ui_auto_open_browser else "No")
+
+    console.print(webui_table)
+
+    # ── API Keys ──────────────────────────────────────────────────────────────
     console.print()
     keys_table = Table(title="API Keys", box=box.ROUNDED, title_style="bold cyan")
     keys_table.add_column("Provider", style="bold")

@@ -54,6 +54,19 @@ class CodiLayConfig:
     parallel: bool = True  # Enable tier-based parallel processing
     max_workers: int = 4  # Max concurrent workers per tier
 
+    # Scope filtering — set at runtime via --scope CLI flag.
+    # When non-empty, only files matching at least one pattern are processed.
+    # All other files are treated as out-of-scope (not unresolved).
+    scope_patterns: List[str] = field(default_factory=list)
+
+    # Documentation style — set at runtime from Settings preferences.
+    # response_style: "technical" | "concise" | "narrative"
+    # detail_level:   "standard" | "brief" | "deep"
+    # include_examples: whether to include code snippets in generated docs
+    response_style: str = "technical"
+    detail_level: str = "standard"
+    include_examples: bool = True
+
     @classmethod
     def load(cls, target_path: str, config_path: Optional[str] = None) -> "CodiLayConfig":
         config = cls(target_path=target_path)

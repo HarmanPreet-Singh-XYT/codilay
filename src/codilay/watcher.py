@@ -93,8 +93,8 @@ class CodiLayEventHandler(FileSystemEventHandler):
     and feeds them to the ChangeAccumulator.
     """
 
-    # Extensions we care about
-    WATCH_EXTENSIONS = {
+    # Default extensions we care about (can be overridden per-instance)
+    DEFAULT_WATCH_EXTENSIONS = {
         ".py",
         ".js",
         ".ts",
@@ -147,12 +147,18 @@ class CodiLayEventHandler(FileSystemEventHandler):
         accumulator: ChangeAccumulator,
         ignore_patterns: Optional[List[str]] = None,
         output_dir: Optional[str] = None,
+        watch_extensions: Optional[List[str]] = None,
     ):
         super().__init__()
         self._root = os.path.abspath(project_root)
         self._accumulator = accumulator
         self._ignore_patterns = ignore_patterns or []
         self._output_dir = output_dir or os.path.join(self._root, "codilay")
+        # If custom extensions provided, use them; otherwise fall back to defaults
+        if watch_extensions:
+            self._watch_extensions = {ext if ext.startswith(".") else f".{ext}" for ext in watch_extensions}
+        else:
+            self._watch_extensions = self.DEFAULT_WATCH_EXTENSIONS
 
     def _should_watch(self, path: str) -> bool:
         """Check if this file change is relevant."""
@@ -175,7 +181,7 @@ class CodiLayEventHandler(FileSystemEventHandler):
 
         # Check extension
         _, ext = os.path.splitext(path)
-        if ext.lower() not in self.WATCH_EXTENSIONS:
+        if ext.lower() not in self._watch_extensions:
             return False
 
         # Check custom ignore patterns
@@ -224,6 +230,9 @@ class Watcher:
         debounce: float = 2.0,
         ignore_patterns: Optional[List[str]] = None,
         verbose: bool = False,
+        watch_extensions: Optional[List[str]] = None,
+        auto_open_ui: bool = False,
+        ui_port: int = 8484,
     ):
         if not HAS_WATCHDOG:
             raise ImportError(
@@ -235,6 +244,9 @@ class Watcher:
         self.debounce = debounce
         self.ignore_patterns = ignore_patterns or []
         self.verbose = verbose
+        self.watch_extensions = watch_extensions  # None = use defaults
+        self.auto_open_ui = auto_open_ui
+        self.ui_port = ui_port
         self.console = Console()
 
         self._observer: Optional[Observer] = None
@@ -256,23 +268,34 @@ class Watcher:
             accumulator=self._accumulator,
             ignore_patterns=self.ignore_patterns,
             output_dir=self.output_dir,
+            watch_extensions=self.watch_extensions,
         )
 
         self._observer = Observer()
         self._observer.schedule(handler, self.target_path, recursive=True)
         self._observer.start()
 
+        ext_info = f"{len(self.watch_extensions)} custom" if self.watch_extensions else "default"
         self.console.print(
             Panel(
                 f"[bold]CodiLay Watch Mode[/bold]\n\n"
-                f"  Project:   [cyan]{os.path.basename(self.target_path)}[/cyan]\n"
-                f"  Debounce:  [yellow]{self.debounce}s[/yellow]\n"
-                f"  Ignoring:  [dim]{len(self.ignore_patterns)} patterns[/dim]\n\n"
+                f"  Project:    [cyan]{os.path.basename(self.target_path)}[/cyan]\n"
+                f"  Debounce:   [yellow]{self.debounce}s[/yellow]\n"
+                f"  Extensions: [dim]{ext_info}[/dim]\n"
+                f"  Ignoring:   [dim]{len(self.ignore_patterns)} patterns[/dim]\n\n"
                 f"[dim]Watching for file changes... Press Ctrl+C to stop.[/dim]",
                 border_style="green",
                 title="watch",
             )
         )
+
+        # Auto-open the web UI if requested
+        if self.auto_open_ui:
+            import webbrowser
+
+            ui_url = f"http://127.0.0.1:{self.ui_port}"
+            self.console.print(f"[dim]Opening web UI at {ui_url}...[/dim]")
+            webbrowser.open(ui_url)
 
         try:
             while self._running:

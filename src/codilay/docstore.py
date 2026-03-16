@@ -288,6 +288,32 @@ class DocStore:
             tags=["unresolved", "open-wires"],
         )
 
+    def add_out_of_scope_references(self, out_of_scope_wires: List[Dict]):
+        """
+        Add a dedicated section listing wires that point outside the --scope
+        boundary.  These are expected gaps — not bugs or dead code.
+        """
+        if not out_of_scope_wires:
+            return
+
+        content = (
+            "> **Note:** This run used `--scope` filtering. "
+            "The references below point to files that were intentionally excluded "
+            "from the selected scope. They are not errors.\n\n"
+        )
+        content += "| From (in scope) | To (out of scope) | Type | Context |\n"
+        content += "|-----------------|-------------------|------|---------|\n"
+        for w in out_of_scope_wires:
+            ctx = w.get("context", "").replace("|", "\\|")
+            content += f"| `{w.get('from', '?')}` | `{w.get('to', '?')}` | {w.get('type', '?')} | {ctx} |\n"
+
+        self.add_section(
+            section_id="out-of-scope-references",
+            title="Out-of-Scope References",
+            content=content,
+            tags=["out-of-scope", "scope-filter"],
+        )
+
     def render_full_document(self) -> str:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         lines = [

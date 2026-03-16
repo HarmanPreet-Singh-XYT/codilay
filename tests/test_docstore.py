@@ -56,3 +56,73 @@ def test_docstore_slugify():
     assert ds._slugify("Hello World!") == "hello-world"
     assert ds._slugify("My_File_Name") == "my-file-name"
     assert ds._slugify("   Extra  Spaces  ") == "extra-spaces"
+
+
+# ── add_out_of_scope_references ───────────────────────────────────────────────
+
+
+def test_add_out_of_scope_references_creates_section():
+    ds = DocStore()
+    wires = [
+        {"from": "src/auth.py", "to": "src/payments.py", "type": "import", "context": "needs PaymentClient"},
+    ]
+    ds.add_out_of_scope_references(wires)
+    assert "out-of-scope-references" in ds._sections
+
+
+def test_add_out_of_scope_references_content():
+    ds = DocStore()
+    wires = [
+        {"from": "src/auth.py", "to": "src/payments.py", "type": "import", "context": "billing hook"},
+        {"from": "src/orders.py", "to": "src/analytics.py", "type": "call", "context": "track event"},
+    ]
+    ds.add_out_of_scope_references(wires)
+    content = ds._sections["out-of-scope-references"]["content"]
+    assert "src/auth.py" in content
+    assert "src/payments.py" in content
+    assert "src/orders.py" in content
+    assert "src/analytics.py" in content
+    assert "billing hook" in content
+
+
+def test_add_out_of_scope_references_section_title():
+    ds = DocStore()
+    wires = [{"from": "a.py", "to": "b.py", "type": "import", "context": ""}]
+    ds.add_out_of_scope_references(wires)
+    assert ds._sections["out-of-scope-references"]["title"] == "Out-of-Scope References"
+
+
+def test_add_out_of_scope_references_tags():
+    ds = DocStore()
+    wires = [{"from": "a.py", "to": "b.py", "type": "import", "context": ""}]
+    ds.add_out_of_scope_references(wires)
+    tags = ds._sections["out-of-scope-references"]["tags"]
+    assert "out-of-scope" in tags
+    assert "scope-filter" in tags
+
+
+def test_add_out_of_scope_references_note_in_content():
+    """Content must mention the --scope flag so the reader understands the context."""
+    ds = DocStore()
+    wires = [{"from": "a.py", "to": "b.py", "type": "call", "context": ""}]
+    ds.add_out_of_scope_references(wires)
+    content = ds._sections["out-of-scope-references"]["content"]
+    assert "--scope" in content
+
+
+def test_add_out_of_scope_references_noop_when_empty():
+    """No section is created when the wire list is empty."""
+    ds = DocStore()
+    ds.add_out_of_scope_references([])
+    assert "out-of-scope-references" not in ds._sections
+
+
+def test_add_out_of_scope_references_escapes_pipe_in_context():
+    """Pipe characters in context must be escaped to avoid breaking the table."""
+    ds = DocStore()
+    wires = [{"from": "a.py", "to": "b.py", "type": "import", "context": "foo | bar"}]
+    ds.add_out_of_scope_references(wires)
+    content = ds._sections["out-of-scope-references"]["content"]
+    # Raw unescaped pipe in a context cell would break the table
+    # The escaped form should appear instead
+    assert "foo \\| bar" in content

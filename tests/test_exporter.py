@@ -1,6 +1,9 @@
 """Tests for codilay.exporter — AI context export."""
 
 import json
+import os
+import tempfile
+from unittest.mock import MagicMock, patch
 
 from codilay.exporter import AIExporter
 
@@ -218,3 +221,133 @@ def test_export_default_project_name():
     exp = AIExporter({}, {}, [], [], project_name="")
     result = exp.export(fmt="markdown")
     assert "Project" in result
+
+
+# ── export_for_ai settings fallback ──────────────────────────────────────────
+
+
+def _write_minimal_state(output_dir: str):
+    """Write a minimal .codilay_state.json so export_for_ai can load it."""
+    import json as _json
+
+    state = {
+        "processed": [],
+        "section_index": {"overview": {"title": "Overview", "file": "", "tags": [], "deps": [], "wires_closed": []}},
+        "section_contents": {"overview": "Test overview content."},
+        "open_wires": [],
+        "closed_wires": [],
+        "parked": {},
+        "park_reasons": {},
+        "last_run": "2025-01-01T00:00:00+00:00",
+        "mode": "full",
+    }
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, ".codilay_state.json"), "w") as f:
+        _json.dump(state, f)
+
+
+def test_export_for_ai_uses_settings_format():
+    """When fmt=None, export_for_ai should use settings.export_default_format."""
+    import json as _json
+    import pathlib
+
+    from codilay.exporter import export_for_ai
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_minimal_state(tmp)
+
+        # Write a settings file that specifies xml format, no token limit
+        settings_dir = os.path.join(tmp, ".codilay_settings")
+        settings_file = os.path.join(settings_dir, "settings.json")
+        os.makedirs(settings_dir)
+        with open(settings_file, "w") as f:
+            _json.dump({"export_default_format": "xml", "export_max_tokens": 0}, f)
+
+        with patch("codilay.settings.SETTINGS_FILE", pathlib.Path(settings_file)):
+            result = export_for_ai(tmp, fmt=None)
+
+    assert "<codebase" in result  # XML format was used
+
+
+def test_export_for_ai_explicit_fmt_overrides_settings():
+    """An explicit fmt argument must override the settings preference."""
+    import json as _json
+    import pathlib
+
+    from codilay.exporter import export_for_ai
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_minimal_state(tmp)
+
+        settings_dir = os.path.join(tmp, ".codilay_settings")
+        settings_file = os.path.join(settings_dir, "settings.json")
+        os.makedirs(settings_dir)
+        with open(settings_file, "w") as f:
+            _json.dump({"export_default_format": "xml", "export_max_tokens": 0}, f)
+
+        with patch("codilay.settings.SETTINGS_FILE", pathlib.Path(settings_file)):
+            result = export_for_ai(tmp, fmt="json")
+
+    # Should be JSON, not XML
+    data = json.loads(result)
+    assert "sections" in data
+
+
+def test_export_for_ai_uses_settings_max_tokens():
+    """When max_tokens=None, the settings token limit is applied."""
+    import json as _json
+    import pathlib
+
+    from codilay.exporter import export_for_ai
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_minimal_state(tmp)
+
+        settings_dir = os.path.join(tmp, ".codilay_settings")
+        settings_file = os.path.join(settings_dir, "settings.json")
+        os.makedirs(settings_dir)
+        # Very tight budget → truncated
+        with open(settings_file, "w") as f:
+            _json.dump({"export_default_format": "markdown", "export_max_tokens": 10}, f)
+
+        with patch("codilay.settings.SETTINGS_FILE", pathlib.Path(settings_file)):
+            result = export_for_ai(tmp, fmt="markdown", max_tokens=None)
+
+    # With only 10 tokens the result must be truncated
+    assert "Truncated" in result or len(result) < 200
+
+
+def test_export_for_ai_zero_max_tokens_means_no_limit():
+    """export_max_tokens=0 in settings means unlimited (no truncation)."""
+    import json as _json
+    import pathlib
+
+    from codilay.exporter import export_for_ai
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_minimal_state(tmp)
+
+        settings_dir = os.path.join(tmp, ".codilay_settings")
+        settings_file = os.path.join(settings_dir, "settings.json")
+        os.makedirs(settings_dir)
+        with open(settings_file, "w") as f:
+            _json.dump({"export_default_format": "markdown", "export_max_tokens": 0}, f)
+
+        with patch("codilay.settings.SETTINGS_FILE", pathlib.Path(settings_file)):
+            result = export_for_ai(tmp, fmt="markdown")
+
+    assert "Truncated" not in result
+
+
+def test_export_for_ai_missing_state_raises():
+    """export_for_ai raises FileNotFoundError when no state file exists."""
+    from codilay.exporter import export_for_ai
+
+    with tempfile.TemporaryDirectory() as tmp:
+        empty_dir = os.path.join(tmp, "no_state_here")
+        os.makedirs(empty_dir)
+        try:
+            export_for_ai(empty_dir)
+            assert False, "Should have raised FileNotFoundError"
+        except FileNotFoundError:
+            pass

@@ -19,7 +19,12 @@ class Planner:
         files: List[str],
         state: AgentState,
     ) -> Dict[str, Any]:
-        sys_prompt = system_prompt(self.config)
+        sys_prompt = system_prompt(
+            self.config,
+            response_style=getattr(self.config, "response_style", "technical"),
+            detail_level=getattr(self.config, "detail_level", "standard"),
+            include_examples=getattr(self.config, "include_examples", True),
+        )
         user_prompt = planning_prompt(
             file_tree=file_tree,
             md_contents=md_contents,

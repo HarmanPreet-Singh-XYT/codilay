@@ -305,7 +305,7 @@ class AIExporter:
 
 def export_for_ai(
     output_dir: str,
-    fmt: str = "markdown",
+    fmt: Optional[str] = None,
     max_tokens: Optional[int] = None,
     include_graph: bool = True,
 ) -> str:
@@ -314,14 +314,28 @@ def export_for_ai(
 
     Args:
         output_dir: Path to the codilay output directory.
-        fmt: "markdown", "xml", or "json".
-        max_tokens: Approximate token budget. None = no limit.
+        fmt: "markdown", "xml", or "json". None = use export_default_format preference.
+        max_tokens: Approximate token budget. None = use export_max_tokens preference (0 = no limit).
         include_graph: Include dependency information.
 
     Returns:
         The exported string.
     """
+    from codilay.settings import Settings
     from codilay.state import AgentState
+
+    # Resolve format and token limit from settings when not explicitly provided
+    try:
+        settings = Settings.load()
+        if fmt is None:
+            fmt = settings.export_default_format
+        if max_tokens is None:
+            # 0 in settings means "no limit"
+            max_tokens = settings.export_max_tokens if settings.export_max_tokens > 0 else None
+    except Exception:
+        # If settings can't be loaded, fall back to safe defaults
+        if fmt is None:
+            fmt = "markdown"
 
     state_path = os.path.join(output_dir, ".codilay_state.json")
     if not os.path.exists(state_path):

@@ -217,7 +217,12 @@ class Triage:
 
         from codilay.prompts import system_prompt, triage_prompt
 
-        sys_prompt = system_prompt(self.config)
+        sys_prompt = system_prompt(
+            self.config,
+            response_style=getattr(self.config, "response_style", "technical"),
+            detail_level=getattr(self.config, "detail_level", "standard"),
+            include_examples=getattr(self.config, "include_examples", True),
+        )
         user_prompt = triage_prompt(
             file_tree=file_tree,
             all_files=all_files,

@@ -163,8 +163,21 @@ def cli(ctx, config, output, model, provider, base_url, verbose):
 
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
+@click.option(
+    "--scope",
+    "-s",
+    multiple=True,
+    default=None,
+    help=(
+        "Restrict documentation to specific files, folders or glob patterns. "
+        "Can be supplied multiple times: "
+        "--scope src/auth/ --scope src/middleware/auth.py  "
+        "Wires that point outside the scope are marked 'out-of-scope' rather "
+        "than 'unresolved'."
+    ),
+)
 @click.pass_context
-def run(ctx, target):
+def run(ctx, target, scope):
     """Run the documentation agent (default command)."""
     settings: Settings = ctx.obj["settings"]
     target = os.path.abspath(target)
@@ -174,6 +187,9 @@ def run(ctx, target):
     provider = ctx.obj["provider"] or settings.default_provider
     base_url = ctx.obj["base_url"]
     verbose = ctx.obj["verbose"]
+
+    # Normalise scope: a tuple of patterns/paths from --scope flags
+    scope_patterns = list(scope) if scope else []
 
     ui = UI(console, verbose)
     ui.show_banner()
@@ -203,11 +219,28 @@ def run(ctx, target):
     if settings.max_workers != 4:  # non-default means user changed it
         cfg.max_workers = settings.max_workers
 
+    # Apply global large-file threshold preference if set
+    if settings.large_file_threshold is not None:
+        cfg.chunk_token_threshold = settings.large_file_threshold
+
+    # Store scope patterns on the config so downstream components can see them
+    cfg.scope_patterns = scope_patterns
+
+    # Apply documentation style preferences from global settings
+    cfg.response_style = settings.response_style
+    cfg.detail_level = settings.detail_level
+    cfg.include_examples = settings.include_examples
+
     ui.show_config(cfg)
 
     # ── Resolve paths ────────────────────────────────────────────
     if output_dir is None:
-        output_dir = os.path.join(target, "codilay")
+        # Honour the global doc_output_location preference
+        if settings.doc_output_location == "docs":
+            output_dir = os.path.join(target, "docs")
+        else:
+            # "codilay" and "local" both write to <project>/codilay/
+            output_dir = os.path.join(target, "codilay")
 
     state_path = os.path.join(output_dir, ".codilay_state.json")
     codebase_md_path = os.path.join(output_dir, "CODEBASE.md")
@@ -403,6 +436,46 @@ def run(ctx, target):
                 f"(skipping {len(triage_result.skip)})"
             )
 
+    # ── Apply --scope filtering ───────────────────────────────────
+    # When the user specifies --scope patterns only the matching subset of
+    # files enters the queue.  The unmatched files are remembered so that
+    # wires pointing to them can be labelled "out-of-scope" rather than
+    # "unresolved" in the final document.
+    out_of_scope_files: set = set()
+    if scope_patterns:
+        import fnmatch
+
+        def _file_matches_scope(rel_path: str) -> bool:
+            for pat in scope_patterns:
+                # Normalise: if pattern has no wildcard and looks like a dir,
+                # match any file underneath it.
+                norm = pat.rstrip("/")
+                if fnmatch.fnmatch(rel_path, pat):
+                    return True
+                if fnmatch.fnmatch(rel_path, pat.rstrip("/") + "/*"):
+                    return True
+                # Plain prefix match (e.g. "src/auth" matches "src/auth/foo.py")
+                if rel_path.startswith(norm + "/") or rel_path == norm:
+                    return True
+            return False
+
+        in_scope = [f for f in files_to_process if _file_matches_scope(f)]
+        out_of_scope_files = set(f for f in all_files if not _file_matches_scope(f))
+
+        if not in_scope:
+            ui.error(f"--scope filter matched no files.  Patterns: {', '.join(scope_patterns)}")
+            return
+
+        ui.info(
+            f"Scope filter active — processing [bold]{len(in_scope)}[/bold] "
+            f"of {len(files_to_process)} files "
+            f"({len(out_of_scope_files)} out-of-scope)"
+        )
+        files_to_process = in_scope
+
+    # Store out-of-scope set on the state so the wire manager can use it
+    state_out_of_scope = out_of_scope_files
+
     # ── Determine scope based on mode (for non-full runs) ────────
 
     if mode == "git_update" and diff_result:
@@ -475,6 +548,7 @@ def run(ctx, target):
                 git,
                 current_commit,
                 current_commit_short,
+                out_of_scope_files=state_out_of_scope,
             )
             return
 
@@ -714,6 +788,7 @@ def run(ctx, target):
         git,
         current_commit,
         current_commit_short,
+        out_of_scope_files=state_out_of_scope,
     )
 
     # Show LLM usage
@@ -740,6 +815,7 @@ def _finalize_and_write(
     git,
     current_commit,
     current_commit_short,
+    out_of_scope_files=None,
 ):
     """Finalize documentation, write all output files, save state."""
     from codilay.processor import Processor
@@ -754,12 +830,31 @@ def _finalize_and_write(
     open_wires = wire_mgr.get_open_wires()
     closed_wires = wire_mgr.get_closed_wires()
 
+    # Classify open wires: "out-of-scope" vs genuinely "unresolved"
+    # A wire is out-of-scope when its target file is in the out_of_scope set.
+    out_of_scope_set = out_of_scope_files or set()
+    out_of_scope_wires = []
+    unresolved_wires = []
+    for w in open_wires:
+        target_file = w.get("to", "")
+        if target_file in out_of_scope_set:
+            w = dict(w)  # copy so we don't mutate the original
+            w["status"] = "out-of-scope"
+            out_of_scope_wires.append(w)
+        else:
+            unresolved_wires.append(w)
+
     # Remove stale dependency-graph / unresolved-references if they exist
     docstore.remove_section("dependency-graph")
     docstore.remove_section("unresolved-references")
+    docstore.remove_section("out-of-scope-references")
 
     docstore.add_dependency_graph(closed_wires)
-    docstore.add_unresolved_references(open_wires)
+    docstore.add_unresolved_references(unresolved_wires)
+
+    # Only add out-of-scope section when there are scoped-out wires
+    if out_of_scope_wires:
+        docstore.add_out_of_scope_references(out_of_scope_wires)
 
     # Write CODEBASE.md
     final_md = docstore.render_full_document()
@@ -774,12 +869,14 @@ def _finalize_and_write(
         "documented_commit": current_commit,
         "documented_commit_short": current_commit_short,
         "closed": closed_wires,
-        "open": open_wires,
+        "open": unresolved_wires,
+        "out_of_scope": out_of_scope_wires,
     }
     with open(links_path, "w", encoding="utf-8") as f:
         json.dump(links_data, f, indent=2)
 
     # ── Save final state with git info ───────────────────────────
+    # Persist all open wires (both unresolved and out-of-scope) in state
     state.open_wires = open_wires
     state.closed_wires = closed_wires
     state.section_index = docstore.get_section_index()
@@ -1162,6 +1259,30 @@ def init(target):
         console.print(f"[yellow]Config already exists: {config_path}[/yellow]")
         return
 
+    # ── Doc output location ───────────────────────────────────────
+    console.print()
+    console.print("[bold]Where should generated docs be stored?[/bold]\n")
+    console.print(
+        (
+            "  [bold cyan][1][/bold cyan]  codilay/CODEBASE.md   "
+            "[dim]— commit docs, gitignore chat/state    (recommended)[/dim]"
+        )
+    )
+    console.print(
+        "  [bold cyan][2][/bold cyan]  docs/CODEBASE.md      [dim]— docs in docs/, codilay/ fully gitignored[/dim]"
+    )
+    console.print("  [bold cyan][3][/bold cyan]  gitignore everything  [dim]— local tool only, nothing committed[/dim]")
+    console.print()
+
+    loc_raw = click.prompt(
+        "Select",
+        type=click.Choice(["1", "2", "3"]),
+        default="1",
+        show_choices=False,
+    )
+    doc_location_map = {"1": "codilay", "2": "docs", "3": "local"}
+    doc_location = doc_location_map[loc_raw]
+
     default_config = {
         "ignore": [
             "**/*.test.*",
@@ -1197,13 +1318,99 @@ def init(target):
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(default_config, f, indent=2)
 
-    console.print(f"[green]Created config:[/green] {config_path}")
-    console.print("[dim]Edit it to customize CodiLay behaviour for this project.[/dim]")
+    console.print(f"\n[green]Created config:[/green] {config_path}")
+
+    # ── Write .gitignore entries ──────────────────────────────────
+    _write_gitignore_for_doc_location(target, doc_location, console)
+
     console.print()
     console.print("[dim]Tip: New config sections available:[/dim]")
     console.print("[dim]  • [bold]watch[/bold]    — debounce settings for watch mode[/dim]")
     console.print("[dim]  • [bold]export[/bold]   — default format and token limits[/dim]")
     console.print("[dim]  • [bold]schedule[/bold] — cron and on-commit auto re-runs[/dim]")
+
+
+def _write_gitignore_for_doc_location(target: str, doc_location: str, cons) -> None:
+    """
+    Write appropriate .gitignore entries based on the chosen doc output
+    location.  Three scenarios:
+
+    "codilay"  → codilay/ stays in repo; only internal state dirs are ignored
+    "docs"     → codilay/ entirely ignored; docs/ is already tracked
+    "local"    → entire codilay/ and docs/CODEBASE.md are ignored
+    """
+    gitignore_path = os.path.join(target, ".gitignore")
+
+    # Lines we might need to add, keyed by scenario
+    MARKER = "# CodiLay — auto-generated"
+
+    if doc_location == "codilay":
+        new_lines = [
+            MARKER,
+            "# Commit codilay/CODEBASE.md and codilay/links.json",
+            "# Ignore internal state / personal data",
+            "codilay/chat/",
+            "codilay/memory/",
+            "codilay/team/",
+            "codilay/history/",
+            "codilay/doc_snapshots/",
+            "codilay/search_index.json",
+            "codilay/triage_feedback.json",
+            "codilay/schedule.json",
+            "codilay/.scheduler.pid",
+            "codilay/.codilay_state.json",
+            "",
+        ]
+        msg = (
+            "[green]✓[/green] .gitignore updated — "
+            "[bold]codilay/CODEBASE.md[/bold] and [bold]codilay/links.json[/bold] will be committed; "
+            "chat/state/memory dirs are ignored."
+        )
+
+    elif doc_location == "docs":
+        new_lines = [
+            MARKER,
+            "# CodiLay operational state — fully ignored",
+            "codilay/",
+            "",
+        ]
+        msg = (
+            "[green]✓[/green] .gitignore updated — "
+            "[bold]codilay/[/bold] is fully ignored. "
+            "Docs will be written to [bold]docs/CODEBASE.md[/bold] (already tracked)."
+        )
+
+    else:  # "local"
+        new_lines = [
+            MARKER,
+            "# CodiLay — local only, nothing committed",
+            "codilay/",
+            "docs/CODEBASE.md",
+            "",
+        ]
+        msg = (
+            "[green]✓[/green] .gitignore updated — "
+            "[bold]codilay/[/bold] and [bold]docs/CODEBASE.md[/bold] are fully ignored."
+        )
+
+    # Read existing .gitignore (or start empty)
+    existing = ""
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r", encoding="utf-8") as f:
+            existing = f.read()
+
+    # Only append if the marker isn't already there
+    if MARKER in existing:
+        cons.print("[dim]⚠  .gitignore already contains CodiLay entries — skipping.[/dim]")
+        return
+
+    separator = "\n" if existing and not existing.endswith("\n") else ""
+    addition = separator + "\n".join(new_lines) + "\n"
+
+    with open(gitignore_path, "a", encoding="utf-8") as f:
+        f.write(addition)
+
+    cons.print(msg)
 
 
 # ─── Interactive menu ─────────────────────────────────────────────────────────
@@ -1325,7 +1532,7 @@ def keys(ctx):
 
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
-@click.option("--port", "-P", default=8484, help="Port to serve on")
+@click.option("--port", "-P", default=None, type=int, help="Port to serve on (overrides preference)")
 @click.option("--host", "-H", default="127.0.0.1", help="Host to bind to")
 @click.option("--output", "-o", default=None, help="Output directory containing codilay files")
 def serve(target, port, host, output):
@@ -1339,6 +1546,15 @@ def serve(target, port, host, output):
     """
     target = os.path.abspath(target)
     output_dir = output or os.path.join(target, "codilay")
+
+    # Resolve port and auto-open from settings when not explicitly provided
+    from codilay.settings import Settings
+
+    settings = Settings.load()
+    settings.inject_env_vars()
+
+    effective_port = port if port is not None else settings.web_ui_port
+    auto_open = settings.web_ui_auto_open_browser
 
     # Quick validation
     codebase_md = os.path.join(output_dir, "CODEBASE.md")
@@ -1362,14 +1578,27 @@ def serve(target, port, host, output):
         Panel(
             f"[bold]CodiLay Web UI[/bold]\n\n"
             f"  Project:  [cyan]{os.path.basename(target)}[/cyan]\n"
-            f"  URL:      [bold green]http://{host}:{port}[/bold green]\n\n"
+            f"  URL:      [bold green]http://{host}:{effective_port}[/bold green]\n\n"
             f"[dim]Press Ctrl+C to stop.[/dim]",
             border_style="blue",
             title="serve",
         )
     )
 
-    run_server(target, output_dir, host=host, port=port)
+    if auto_open:
+        import threading
+        import webbrowser
+
+        def _open_browser():
+            import time
+
+            time.sleep(1.0)  # Give the server a moment to start
+            webbrowser.open(f"http://{host}:{effective_port}")
+
+        t = threading.Thread(target=_open_browser, daemon=True)
+        t.start()
+
+    run_server(target, output_dir, host=host, port=effective_port)
 
 
 # ── Chat command ──────────────────────────────────────────────────────────────
@@ -1899,7 +2128,7 @@ def _show_memory(console, memory):
 
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
-@click.option("--debounce", "-d", default=2.0, help="Debounce delay in seconds")
+@click.option("--debounce", "-d", default=None, type=float, help="Debounce delay in seconds (overrides preference)")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 def watch(target, debounce, verbose):
     """Watch for file changes and auto-update documentation.
@@ -1938,15 +2167,26 @@ def watch(target, debounce, verbose):
         )
         return
 
-    # Load ignore patterns from config if available
+    # Load settings and project config
+    from codilay.settings import Settings
+
+    settings = Settings.load()
+    settings.inject_env_vars()
+
+    # --debounce CLI flag wins; fall back to user preference
+    effective_debounce = debounce if debounce is not None else settings.watch_debounce_seconds
+
     cfg = CodiLayConfig.load(target)
     ignore_patterns = cfg.ignore_patterns if cfg.ignore_patterns else None
+
+    # watch_extensions: None means use the built-in defaults
+    watch_extensions = settings.watch_extensions if settings.watch_extensions else None
 
     console.print(
         Panel(
             f"[bold]CodiLay Watch Mode[/bold]\n\n"
             f"  Project:   [cyan]{os.path.basename(target)}[/cyan]\n"
-            f"  Debounce:  [cyan]{debounce}s[/cyan]\n\n"
+            f"  Debounce:  [cyan]{effective_debounce}s[/cyan]\n\n"
             f"[dim]Watching for file changes. Press Ctrl+C to stop.[/dim]",
             border_style="blue",
             title="watch",
@@ -1956,9 +2196,12 @@ def watch(target, debounce, verbose):
     watcher = Watcher(
         target_path=target,
         output_dir=output_dir,
-        debounce=debounce,
+        debounce=effective_debounce,
         ignore_patterns=ignore_patterns,
         verbose=verbose,
+        watch_extensions=watch_extensions,
+        auto_open_ui=settings.watch_auto_open_ui,
+        ui_port=settings.web_ui_port,
     )
     watcher.start()
 

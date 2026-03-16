@@ -1,7 +1,12 @@
 """All LLM prompt templates for CodiLay."""
 
 
-def system_prompt(config) -> str:
+def system_prompt(
+    config,
+    response_style: str = "technical",
+    detail_level: str = "standard",
+    include_examples: bool = True,
+) -> str:
     notes_section = ""
     if config.notes:
         notes_section = f"\n\nProject context:\n{config.notes}"
@@ -9,6 +14,33 @@ def system_prompt(config) -> str:
     instructions_section = ""
     if config.instructions:
         instructions_section = f"\n\nSpecial instructions:\n{config.instructions}"
+
+    # ── Response style modifier ───────────────────────────────────────────────
+    style_note = ""
+    if response_style == "concise":
+        style_note = (
+            "\n\nResponse style: Keep documentation concise — short paragraphs, bullet points preferred over prose."
+        )
+    elif response_style == "narrative":
+        style_note = "\n\nResponse style: Write in narrative prose — full sentences, explain the reasoning and purpose behind design decisions."
+    # "technical" (default) — no extra note, behaviour is already technical
+
+    # ── Detail level modifier ─────────────────────────────────────────────────
+    detail_note = ""
+    if detail_level == "brief":
+        detail_note = "\n\nDetail level: Brief — document the purpose and key public API only. Skip internal implementation details."
+    elif detail_level == "deep":
+        detail_note = (
+            "\n\nDetail level: Deep — document everything including internal helpers, edge cases, and algorithm notes."
+        )
+    # "standard" (default) — no extra note
+
+    # ── Examples modifier ─────────────────────────────────────────────────────
+    examples_note = ""
+    if not include_examples:
+        examples_note = "\n\nDo NOT include code examples or usage snippets in the documentation."
+    else:
+        examples_note = "\n\nWhere useful, include short code examples or usage snippets to illustrate behaviour."
 
     return f"""You are CodiLay, an AI agent that reads source code files and builds a structured Markdown reference document for a codebase.
 
@@ -27,7 +59,7 @@ When writing documentation content:
 - Focus on WHAT the code does, HOW it connects to other parts, and WHY it exists
 - Include key function/class/export names
 - Note important patterns, data flows, and architectural decisions
-- Use cross-references like "→ See [Section Name]" when referencing other documented parts{notes_section}{instructions_section}"""
+- Use cross-references like "→ See [Section Name]" when referencing other documented parts{style_note}{detail_note}{examples_note}{notes_section}{instructions_section}"""
 
 
 def triage_prompt(

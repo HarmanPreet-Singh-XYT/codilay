@@ -6,13 +6,19 @@ new sessions, etc.  They hold:
     • API keys for each provider
     • The user's preferred (default) provider & model
     • Global preferences (verbose, triage mode, …)
+    • Doc output location preference (where CODEBASE.md is written / gitignored)
+    • Documentation style (response style, detail level, examples)
+    • Watch mode defaults (debounce delay, auto-open web UI, extensions)
+    • Export defaults (format, token budget)
+    • Web UI defaults (port, auto-open browser)
+    • Large file threshold override
 """
 
 import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 # ── Location ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +77,46 @@ class Settings:
     max_tokens_per_call: int = 4096
     parallel: bool = True  # tier-based parallel processing
     max_workers: int = 4  # max concurrent workers per tier
+
+    # Doc output location
+    # "codilay"  → write to <project>/codilay/, gitignore chat/state (Scenario A)
+    # "docs"     → write CODEBASE.md to <project>/docs/, codilay/ dir gitignored (Scenario B)
+    # "local"    → gitignore everything, purely local tool (Scenario C)
+    doc_output_location: str = "codilay"  # codilay | docs | local
+
+    # Documentation style
+    # response_style: how the LLM structures answers
+    #   "code-first"       → lead with code references, then explanation
+    #   "explanation-first"→ lead with prose summary, then code
+    #   "balanced"         → interleaved (default)
+    response_style: str = "balanced"  # balanced | code-first | explanation-first
+
+    # detail_level: verbosity of generated section prose
+    #   "terse"    → one-liners, minimum prose
+    #   "standard" → concise paragraphs (default)
+    #   "detailed" → thorough writeups with context
+    detail_level: str = "standard"  # standard | terse | detailed
+
+    # Whether to include code examples in doc sections
+    include_examples: bool = True
+
+    # Watch mode defaults
+    watch_debounce_seconds: float = 2.0
+    watch_auto_open_ui: bool = False
+    # Extra file extensions to watch (in addition to code files)
+    watch_extensions: List[str] = field(default_factory=list)
+
+    # Export defaults
+    export_default_format: str = "compact"  # compact | structured | narrative
+    export_max_tokens: int = 100000
+
+    # Web UI defaults
+    web_ui_port: int = 8765
+    web_ui_auto_open_browser: bool = True
+
+    # Large file handling — token threshold above which chunking kicks in.
+    # None means use the per-project config / built-in default (6000).
+    large_file_threshold: Optional[int] = None
 
     # ── persistence ───────────────────────────────────────────────
 
