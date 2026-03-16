@@ -1,4 +1,4 @@
-"""UI — rich terminal interface for CodyLay with git awareness."""
+"""UI — rich terminal interface for CodiLay with git awareness."""
 
 import fnmatch
 from contextlib import contextmanager
@@ -18,12 +18,12 @@ class UI:
 
     def show_banner(self):
         banner = r"""
- ██████╗  ██████╗ ██████╗ ██╗   ██╗██╗      █████╗ ██╗   ██╗
-██╔════╝ ██╔═══██╗██╔══██╗╚██╗ ██╔╝██║     ██╔══██╗╚██╗ ██╔╝
-██║      ██║   ██║██║  ██║  ╚████╔╝ ██║     ███████║  ╚████╔╝
-██║      ██║   ██║██║  ██║   ╚██╔╝  ██║     ██╔══██║   ╚██╔╝
-╚██████╗ ╚██████╔╝██████╔╝    ██║   ███████╗██║  ██║    ██║
- ╚═════╝  ╚═════╝ ╚═════╝     ╚═╝   ╚══════╝╚═╝  ╚═╝     ╚═╝
+ ██████╗  ██████╗ ██████╗ ██╗██╗      █████╗ ██╗   ██╗
+██╔════╝ ██╔═══██╗██╔══██╗██║██║     ██╔══██╗╚██╗ ██╔╝
+██║      ██║   ██║██║  ██║██║██║     ███████║  ╚████╔╝
+██║      ██║   ██║██║  ██║██║██║     ██╔══██║   ╚██╔╝
+╚██████╗ ╚██████╔╝██████╔╝██║███████╗██║  ██║    ██║
+ ╚═════╝  ╚═════╝ ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝     ╚═╝
 """
         self.console.print(
             Panel(
@@ -180,7 +180,7 @@ class UI:
                 commits_text += f"  [dim]… +{extra} more commits[/dim]\n"
 
         panel_text = (
-            f"[bold]CodyLay found existing documentation.[/bold]\n"
+            f"[bold]CodiLay found existing documentation.[/bold]\n"
             f"Last documented commit: [cyan]{diff_result.base_commit[:8]}[/cyan] "
             f"({diff_result.commits_behind} commits behind HEAD)\n"
             f"\n[bold]Changed files since last run:[/bold]\n"
@@ -216,7 +216,7 @@ class UI:
         total = processed + remaining
         
         panel_text = (
-            f"[bold]CodyLay detected an interrupted run.[/bold]\n\n"
+            f"[bold]CodiLay detected an interrupted run.[/bold]\n\n"
             f"  • Processed: [green]{processed}[/green] files\n"
             f"  • Remaining: [yellow]{remaining}[/yellow] files\n"
             f"  • Total planned: {total} files\n\n"
@@ -242,7 +242,7 @@ class UI:
         self.console.print()
         self.console.print(
             Panel(
-                "[bold]CodyLay found an existing doc for this project.[/bold]\n\n"
+                "[bold]CodiLay found an existing doc for this project.[/bold]\n\n"
                 "What would you like to do?\n\n"
                 "  [cyan][1][/cyan] Update changed files only  "
                 "[dim](recommended)[/dim]\n"

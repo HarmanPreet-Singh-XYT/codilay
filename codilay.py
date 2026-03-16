@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CodyLay — AI Agent for Codebase Documentation
+CodiLay — AI Agent for Codebase Documentation
 CLI entry point.
 """
 
@@ -23,29 +23,29 @@ from rich import box
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from codylay.config import CodyLayConfig
-from codylay.scanner import Scanner
-from codylay.planner import Planner
-from codylay.processor import Processor
-from codylay.wire_manager import WireManager
-from codylay.docstore import DocStore
-from codylay.state import AgentState
-from codylay.llm_client import LLMClient
-from codylay.ui import UI
+from codilay.config import CodiLayConfig
+from codilay.scanner import Scanner
+from codilay.planner import Planner
+from codilay.processor import Processor
+from codilay.wire_manager import WireManager
+from codilay.docstore import DocStore
+from codilay.state import AgentState
+from codilay.llm_client import LLMClient
+from codilay.ui import UI
 
 console = Console()
 
 
 @click.group(invoke_without_command=True)
 @click.option('--target', '-t', default='.', help='Path to the codebase to document')
-@click.option('--config', '-c', default=None, help='Path to codylay.config.json')
+@click.option('--config', '-c', default=None, help='Path to codilay.config.json')
 @click.option('--output', '-o', default=None, help='Output directory')
 @click.option('--model', '-m', default=None, help='LLM model override')
 @click.option('--provider', '-p', default='anthropic', type=click.Choice(['anthropic', 'openai']), help='LLM provider')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
 @click.pass_context
 def cli(ctx, target, config, output, model, provider, verbose):
-    """CodyLay — AI Agent for Codebase Documentation"""
+    """CodiLay — AI Agent for Codebase Documentation"""
     ctx.ensure_object(dict)
     ctx.obj['target'] = os.path.abspath(target)
     ctx.obj['config_path'] = config
@@ -61,7 +61,7 @@ def cli(ctx, target, config, output, model, provider, verbose):
 @cli.command()
 @click.pass_context
 def run(ctx):
-    """Run CodyLay on a codebase (default command)"""
+    """Run CodiLay on a codebase (default command)"""
     target = ctx.obj['target']
     config_path = ctx.obj['config_path']
     output_dir = ctx.obj['output']
@@ -73,7 +73,7 @@ def run(ctx):
     ui.show_banner()
 
     # ── Load Config ──────────────────────────────────────────────────
-    config = CodyLayConfig.load(target, config_path)
+    config = CodiLayConfig.load(target, config_path)
     if model_override:
         config.llm_model = model_override
     config.llm_provider = provider
@@ -84,7 +84,7 @@ def run(ctx):
     if output_dir is None:
         output_dir = os.path.join(target, 'output')
 
-    state_path = os.path.join(output_dir, '.codylay_state.json')
+    state_path = os.path.join(output_dir, '.codilay_state.json')
     codebase_md_path = os.path.join(output_dir, 'CODEBASE.md')
 
     existing_state = None
@@ -315,18 +315,18 @@ def run(ctx):
 @cli.command()
 @click.option('--target', '-t', default='.', help='Path to the codebase')
 def status(target):
-    """Show current CodyLay state for a project"""
+    """Show current CodiLay state for a project"""
     console = Console()
     output_dir = os.path.join(os.path.abspath(target), 'output')
-    state_path = os.path.join(output_dir, '.codylay_state.json')
+    state_path = os.path.join(output_dir, '.codilay_state.json')
 
     if not os.path.exists(state_path):
-        console.print("[yellow]No CodyLay state found for this project.[/yellow]")
+        console.print("[yellow]No CodiLay state found for this project.[/yellow]")
         return
 
     state = AgentState.load(state_path)
 
-    table = Table(title="CodyLay Status", box=box.ROUNDED)
+    table = Table(title="CodiLay Status", box=box.ROUNDED)
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
 
@@ -344,11 +344,11 @@ def status(target):
 @cli.command()
 @click.option('--target', '-t', default='.', help='Path to the codebase')
 def clean(target):
-    """Remove all CodyLay generated files"""
+    """Remove all CodiLay generated files"""
     output_dir = os.path.join(os.path.abspath(target), 'output')
     removed = []
 
-    for fname in ['.codylay_state.json', 'CODEBASE.md', 'CODEBASE.md.bak', 'links.json']:
+    for fname in ['.codilay_state.json', 'CODEBASE.md', 'CODEBASE.md.bak', 'links.json']:
         path = os.path.join(output_dir, fname)
         if os.path.exists(path):
             os.remove(path)

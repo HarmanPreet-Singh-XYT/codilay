@@ -1,19 +1,19 @@
-# CodyLay — Persistent Settings & Interactive Menu
+# CodiLay — Persistent Settings & Interactive Menu
 
 ## What Changed
 
-CodyLay is now a **full interactive application**, not just a one-time CLI tool. Here's what was added:
+CodiLay is now a **full interactive application**, not just a one-time CLI tool. Here's what was added:
 
 ---
 
 ### 🔑 Persistent API Key Storage
 > [!IMPORTANT]
-> API keys are now stored in `~/.codylay/settings.json` — **no more `export` commands!**
+> API keys are now stored in `~/.codilay/settings.json` — **no more `export` commands!**
 
-Keys persist across terminal sessions, restarts, and new terminal windows. The settings file is automatically created when you first configure CodyLay.
+Keys persist across terminal sessions, restarts, and new terminal windows. The settings file is automatically created when you first configure CodiLay.
 
 ### 🖥️ Interactive Menu
-Running `codylay` (no arguments) launches a full interactive menu:
+Running `codilay` (no arguments) launches a full interactive menu:
 
 ```
    ██████╗ ██████╗ ██████╗ ██╗   ██╗██╗      █████╗ ██╗   ██╗
@@ -36,14 +36,14 @@ Running `codylay` (no arguments) launches a full interactive menu:
 
 | File | Purpose |
 |------|---------|
-| [settings.py](file:///Users/harmanpreetsingh/Public/Code/codedoc/src/codylay/settings.py) | Persistent settings store (`~/.codylay/settings.json`) |
-| [menu.py](file:///Users/harmanpreetsingh/Public/Code/codedoc/src/codylay/menu.py) | Interactive menu system with Rich UI |
+| [settings.py](file:///Users/harmanpreetsingh/Public/Code/codedoc/src/codilay/settings.py) | Persistent settings store (`~/.codilay/settings.json`) |
+| [menu.py](file:///Users/harmanpreetsingh/Public/Code/codedoc/src/codilay/menu.py) | Interactive menu system with Rich UI |
 
 ## Modified Files
 
 | File | Changes |
 |------|---------|
-| [cli.py](file:///Users/harmanpreetsingh/Public/Code/codedoc/src/codylay/cli.py) | Settings integration, smart routing, new subcommands |
+| [cli.py](file:///Users/harmanpreetsingh/Public/Code/codedoc/src/codilay/cli.py) | Settings integration, smart routing, new subcommands |
 
 ---
 
@@ -51,22 +51,22 @@ Running `codylay` (no arguments) launches a full interactive menu:
 
 | Command | What it does |
 |---------|--------------|
-| `codylay` | Launches interactive menu |
-| `codylay setup` | First-time setup wizard (provider, API key, model) |
-| `codylay config` | View all current settings |
-| `codylay keys` | Add, view, or remove stored API keys |
+| `codilay` | Launches interactive menu |
+| `codilay setup` | First-time setup wizard (provider, API key, model) |
+| `codilay config` | View all current settings |
+| `codilay keys` | Add, view, or remove stored API keys |
 
 ## Existing Commands (unchanged)
 
 | Command | What it does |
 |---------|--------------|
-| `codylay .` | Document current directory |
-| `codylay /path` | Document a specific project |
-| `codylay . -p openai` | Use a specific provider |
-| `codylay status .` | Show doc status |
-| `codylay diff .` | Show what changed |
-| `codylay clean .` | Remove generated files |
-| `codylay init .` | Create config file |
+| `codilay .` | Document current directory |
+| `codilay /path` | Document a specific project |
+| `codilay . -p openai` | Use a specific provider |
+| `codilay status .` | Show doc status |
+| `codilay diff .` | Show what changed |
+| `codilay clean .` | Remove generated files |
+| `codilay init .` | Create config file |
 
 ---
 
@@ -74,13 +74,13 @@ Running `codylay` (no arguments) launches a full interactive menu:
 
 ```mermaid
 graph TD
-    A[codylay CLI] -->|no args| B[Interactive Menu]
+    A[codilay CLI] -->|no args| B[Interactive Menu]
     A -->|path arg| C[run command]
     A -->|setup| D[Setup Wizard]
     A -->|config| E[View Settings]
     A -->|keys| F[Manage API Keys]
     
-    B --> G[~/.codylay/settings.json]
+    B --> G[~/.codilay/settings.json]
     D --> G
     F --> G
     

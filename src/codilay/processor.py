@@ -4,12 +4,12 @@ import os
 import re
 from typing import Dict, Any, Optional, List
 
-from codylay.llm_client import LLMClient
-from codylay.wire_manager import WireManager
-from codylay.docstore import DocStore
-from codylay.state import AgentState
-from codylay.chunker import Chunker, ChunkType
-from codylay.prompts import (
+from codilay.llm_client import LLMClient
+from codilay.wire_manager import WireManager
+from codilay.docstore import DocStore
+from codilay.state import AgentState
+from codilay.chunker import Chunker, ChunkType
+from codilay.prompts import (
     system_prompt,
     processing_prompt,
     finalize_prompt,

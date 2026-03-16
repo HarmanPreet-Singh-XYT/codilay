@@ -3,14 +3,14 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "codylay"
+name = "codilay"
 version = "0.1.0"
 description = "AI Agent for Codebase Documentation"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
-    {name = "CodyLay"},
+    {name = "CodiLay"},
 ]
 keywords = ["documentation", "ai", "llm", "codebase", "agent"]
 classifiers = [
@@ -32,19 +32,19 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/HarmanPreet-Singh-XYT/codylay"
-Repository = "https://github.com/HarmanPreet-Singh-XYT/codylay"
-Issues = "https://github.com/HarmanPreet-Singh-XYT/codylay/issues"
-Documentation = "https://github.com/HarmanPreet-Singh-XYT/codylay#readme"
+Homepage = "https://github.com/HarmanPreet-Singh-XYT/codilay"
+Repository = "https://github.com/HarmanPreet-Singh-XYT/codilay"
+Issues = "https://github.com/HarmanPreet-Singh-XYT/codilay/issues"
+Documentation = "https://github.com/HarmanPreet-Singh-XYT/codilay#readme"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "ruff>=0.1.0",
 ]
 
-# THIS IS THE KEY PART — registers the `codylay` command
+# THIS IS THE KEY PART — registers the `codilay` command
 [project.scripts]
-codylay = "codylay.cli:cli"
+codilay = "codilay.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

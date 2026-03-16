@@ -151,7 +151,7 @@ class LLMClient:
         if not self.model:
             raise ValueError(
                 f"No model specified for provider '{self.provider}'. "
-                f"Set it via --model or in codylay.config.json"
+                f"Set it via --model or in codilay.config.json"
             )
 
         self.max_tokens = config.max_tokens_per_call
@@ -208,7 +208,7 @@ class LLMClient:
             raise ValueError(
                 "Custom provider requires a base URL. Set via:\n"
                 "  --base-url https://your-endpoint.com/v1\n"
-                "  OR codylay.config.json → llm.baseUrl\n"
+                "  OR codilay.config.json → llm.baseUrl\n"
                 "  OR env CUSTOM_LLM_BASE_URL"
             )
 

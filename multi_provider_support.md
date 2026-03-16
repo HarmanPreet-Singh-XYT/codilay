@@ -1,6 +1,6 @@
 # Multi-Provider LLM Support
 
-CodyLay now supports **10 LLM providers** out of the box:
+CodiLay now supports **10 LLM providers** out of the box:
 
 ## Supported Providers
 
@@ -22,23 +22,23 @@ CodyLay now supports **10 LLM providers** out of the box:
 ```bash
 # Use Google Gemini
 export GEMINI_API_KEY=your-key
-codylay . -p gemini
+codilay . -p gemini
 
 # Use local Ollama (no API key needed)
-codylay . -p ollama
+codilay . -p ollama
 
 # Use Groq with a specific model
-codylay . -p groq -m mixtral-8x7b-32768
+codilay . -p groq -m mixtral-8x7b-32768
 
 # Use a custom OpenAI-compatible endpoint
 export CUSTOM_LLM_API_KEY=your-key
-codylay . -p custom --base-url https://your-endpoint.com/v1 -m your-model
+codilay . -p custom --base-url https://your-endpoint.com/v1 -m your-model
 
 # Override any provider's base URL
-codylay . -p openai --base-url https://your-proxy.com/v1
+codilay . -p openai --base-url https://your-proxy.com/v1
 ```
 
-## Config File ([codylay.config.json](file:///Users/harmanpreetsingh/Public/Code/codylay/codylay.config.json))
+## Config File ([codilay.config.json](file:///Users/harmanpreetsingh/Public/Code/codilay/codilay.config.json))
 
 ```json
 {
@@ -59,14 +59,14 @@ All providers except Anthropic route through the **OpenAI SDK** with a custom `b
 
 | File | Change |
 |---|---|
-| [llm_client.py](file:///Users/harmanpreetsingh/Public/Code/codylay/src/codylay/llm_client.py) | Provider registry, SDK routing, graceful `response_format` fallback |
-| [config.py](file:///Users/harmanpreetsingh/Public/Code/codylay/src/codylay/config.py) | Added `llm_base_url`, default model is now `None` (auto-select) |
-| [cli.py](file:///Users/harmanpreetsingh/Public/Code/codylay/src/codylay/cli.py) | 10 providers in `--provider`, added `--base-url`, smart model defaulting |
-| [ui.py](file:///Users/harmanpreetsingh/Public/Code/codylay/src/codylay/ui.py) | Shows base URL in config table, handles `None` model display |
+| [llm_client.py](file:///Users/harmanpreetsingh/Public/Code/codilay/src/codilay/llm_client.py) | Provider registry, SDK routing, graceful `response_format` fallback |
+| [config.py](file:///Users/harmanpreetsingh/Public/Code/codilay/src/codilay/config.py) | Added `llm_base_url`, default model is now `None` (auto-select) |
+| [cli.py](file:///Users/harmanpreetsingh/Public/Code/codilay/src/codilay/cli.py) | 10 providers in `--provider`, added `--base-url`, smart model defaulting |
+| [ui.py](file:///Users/harmanpreetsingh/Public/Code/codilay/src/codilay/ui.py) | Shows base URL in config table, handles `None` model display |
 
 ### Smart Provider/Model Defaulting
 
-- `codylay .` → Uses config file settings (or anthropic default)
-- `codylay . -p gemini` → Auto-selects `gemini-2.0-flash` (ignores config model)
-- `codylay . -p gemini -m gemini-1.5-pro` → Uses explicit model
-- `codylay . -m gpt-4o-mini` → Uses config provider with overridden model
+- `codilay .` → Uses config file settings (or anthropic default)
+- `codilay . -p gemini` → Auto-selects `gemini-2.0-flash` (ignores config model)
+- `codilay . -p gemini -m gemini-1.5-pro` → Uses explicit model
+- `codilay . -m gpt-4o-mini` → Uses config provider with overridden model

@@ -1,7 +1,7 @@
 """
-CodyLay Settings — persistent, cross-session configuration.
+CodiLay Settings — persistent, cross-session configuration.
 
-Settings are stored in ~/.codylay/settings.json and survive terminal restarts,
+Settings are stored in ~/.codilay/settings.json and survive terminal restarts,
 new sessions, etc.  They hold:
     • API keys for each provider
     • The user's preferred (default) provider & model
@@ -16,7 +16,7 @@ from typing import Dict, Optional
 
 # ── Location ──────────────────────────────────────────────────────────────────
 
-SETTINGS_DIR = Path.home() / ".codylay"
+SETTINGS_DIR = Path.home() / ".codilay"
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
 # ── Provider metadata (label + env var name, for display only) ────────────────
@@ -53,7 +53,7 @@ DEFAULT_MODELS = {
 
 @dataclass
 class Settings:
-    """Global, persistent settings for CodyLay."""
+    """Global, persistent settings for CodiLay."""
 
     # API keys — keyed by provider name
     api_keys: Dict[str, str] = field(default_factory=dict)

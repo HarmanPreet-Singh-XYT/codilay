@@ -1,7 +1,7 @@
 """
-CodyLay Interactive Menu — the "application" experience.
+CodiLay Interactive Menu — the "application" experience.
 
-When the user runs `codylay` with no arguments and no target, they get a
+When the user runs `codilay` with no arguments and no target, they get a
 beautiful interactive menu to set up, configure, and run documentation tasks.
 """
 
@@ -16,7 +16,7 @@ from rich.prompt import Prompt, IntPrompt, Confirm
 from rich.text import Text
 from rich import box
 
-from codylay.settings import (
+from codilay.settings import (
     Settings, PROVIDER_META, DEFAULT_MODELS, SETTINGS_DIR, SETTINGS_FILE,
 )
 
@@ -43,7 +43,7 @@ def _clear():
 
 
 def _header(subtitle: str = ""):
-    """Print the CodyLay header."""
+    """Print the CodiLay header."""
     console.print(LOGO)
     console.print(f"  {TAGLINE}")
     if subtitle:
@@ -227,8 +227,8 @@ def _menu_setup(settings: Settings):
 
     console.print(
         Panel(
-            "[bold]Welcome to CodyLay! 🎉[/bold]\n\n"
-            "This wizard will help you configure CodyLay.\n"
+            "[bold]Welcome to CodiLay! 🎉[/bold]\n\n"
+            "This wizard will help you configure CodiLay.\n"
             "Your settings will be stored persistently at:\n"
             f"  [cyan]{SETTINGS_FILE}[/cyan]\n\n"
             "You won't need to export API keys every time anymore!\n\n"
@@ -313,7 +313,7 @@ def _menu_setup(settings: Settings):
     console.print(Panel(
         "[bold green]Setup complete! 🎉[/bold green]\n\n"
         "Your configuration has been saved. You can now:\n"
-        "  • Run [bold]codylay .[/bold] to document a codebase\n"
+        "  • Run [bold]codilay .[/bold] to document a codebase\n"
         "  • Come back here anytime to change settings\n\n"
         "No more exporting API keys! 🔑",
         border_style="green",
@@ -350,7 +350,7 @@ def _menu_api_keys(settings: Settings):
         _header("Manage API Keys")
 
         console.print(
-            "[dim]API keys are stored in ~/.codylay/settings.json. "
+            "[dim]API keys are stored in ~/.codilay/settings.json. "
             "They persist across terminal sessions.[/dim]\n"
         )
 
@@ -507,7 +507,7 @@ def _menu_provider_model(settings: Settings):
 # ── 5. Preferences ───────────────────────────────────────────────────────────
 
 def _menu_preferences(settings: Settings):
-    """Tweak global CodyLay preferences."""
+    """Tweak global CodiLay preferences."""
     while True:
         _clear()
         _header("Preferences")
@@ -615,7 +615,7 @@ def _menu_view_settings(settings: Settings):
             keys_table.add_row(
                 meta["label"],
                 Settings.mask_key(stored),
-                "[green]~/.codylay/settings.json[/green]",
+                "[green]~/.codilay/settings.json[/green]",
             )
         elif from_env:
             keys_table.add_row(
@@ -642,22 +642,22 @@ def _menu_help():
     _header("Help")
 
     console.print(Panel(
-        "[bold]CodyLay[/bold] is an AI agent that reads your codebase\n"
+        "[bold]CodiLay[/bold] is an AI agent that reads your codebase\n"
         "and generates comprehensive documentation.\n\n"
         "[bold cyan]Quick Start[/bold cyan]\n"
-        "  1. Run [bold]codylay[/bold] → interactive menu\n"
+        "  1. Run [bold]codilay[/bold] → interactive menu\n"
         "  2. Go to [bold]Setup[/bold] to configure your API key\n"
         "  3. Go to [bold]Document a codebase[/bold] and point to your project\n\n"
         "[bold cyan]CLI Usage[/bold cyan]\n"
-        "  [bold]codylay .[/bold]                        Document current directory\n"
-        "  [bold]codylay /path/to/project[/bold]         Document a project\n"
-        "  [bold]codylay . -p openai -m gpt-4o[/bold]    Override provider/model\n"
-        "  [bold]codylay setup[/bold]                    Run setup wizard\n"
-        "  [bold]codylay config[/bold]                   View settings\n"
-        "  [bold]codylay keys[/bold]                     Manage API keys\n"
-        "  [bold]codylay status .[/bold]                 Show doc status\n"
-        "  [bold]codylay diff .[/bold]                   Show changes since last run\n"
-        "  [bold]codylay clean .[/bold]                  Remove generated files\n\n"
+        "  [bold]codilay .[/bold]                        Document current directory\n"
+        "  [bold]codilay /path/to/project[/bold]         Document a project\n"
+        "  [bold]codilay . -p openai -m gpt-4o[/bold]    Override provider/model\n"
+        "  [bold]codilay setup[/bold]                    Run setup wizard\n"
+        "  [bold]codilay config[/bold]                   View settings\n"
+        "  [bold]codilay keys[/bold]                     Manage API keys\n"
+        "  [bold]codilay status .[/bold]                 Show doc status\n"
+        "  [bold]codilay diff .[/bold]                   Show changes since last run\n"
+        "  [bold]codilay clean .[/bold]                  Remove generated files\n\n"
         "[bold cyan]Navigation[/bold cyan]\n"
         "  Enter [bold]0[/bold] or [bold]b[/bold] at any prompt to go back\n"
         "  Press [bold]Ctrl+C[/bold] to quit immediately\n\n"
@@ -665,10 +665,10 @@ def _menu_help():
         f"  Config file: [bold]{SETTINGS_FILE}[/bold]\n"
         "  API keys are stored persistently — no more exporting!\n\n"
         "[bold cyan]Links[/bold cyan]\n"
-        "  GitHub:  https://github.com/HarmanPreet-Singh-XYT/codylay\n"
-        "  Issues:  https://github.com/HarmanPreet-Singh-XYT/codylay/issues",
+        "  GitHub:  https://github.com/HarmanPreet-Singh-XYT/codilay\n"
+        "  Issues:  https://github.com/HarmanPreet-Singh-XYT/codilay/issues",
         border_style="cyan",
-        title="[bold]CodyLay Help[/bold]",
+        title="[bold]CodiLay Help[/bold]",
         title_align="left",
     ))
     _pause()

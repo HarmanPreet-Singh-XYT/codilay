@@ -1,16 +1,16 @@
 """
-CodyLay CLI — the main entry point with git-aware change tracking.
+CodiLay CLI — the main entry point with git-aware change tracking.
 
 Usage:
-    codylay                              Interactive menu
-    codylay .                            Document current directory
-    codylay /path/to/project             Document a specific project
-    codylay . --provider openai          Use OpenAI
-    codylay setup                        First-time setup wizard
-    codylay config                       View settings
-    codylay keys                         Manage API keys
-    codylay status .                     Show doc status
-    codylay clean .                      Remove generated files
+    codilay                              Interactive menu
+    codilay .                            Document current directory
+    codilay /path/to/project             Document a specific project
+    codilay . --provider openai          Use OpenAI
+    codilay setup                        First-time setup wizard
+    codilay config                       View settings
+    codilay keys                         Manage API keys
+    codilay status .                     Show doc status
+    codilay clean .                      Remove generated files
 """
 
 import sys
@@ -31,23 +31,23 @@ from rich.progress import (
 from rich.table import Table
 from rich import box
 
-from codylay.config import CodyLayConfig
-from codylay.scanner import Scanner
-from codylay.planner import Planner
-from codylay.processor import Processor
-from codylay.wire_manager import WireManager
-from codylay.docstore import DocStore
-from codylay.state import AgentState
-from codylay.llm_client import LLMClient, ALL_PROVIDERS
-from codylay.git_tracker import GitTracker, ChangeType
-from codylay.ui import UI
-from codylay.settings import Settings
+from codilay.config import CodiLayConfig
+from codilay.scanner import Scanner
+from codilay.planner import Planner
+from codilay.processor import Processor
+from codilay.wire_manager import WireManager
+from codilay.docstore import DocStore
+from codilay.state import AgentState
+from codilay.llm_client import LLMClient, ALL_PROVIDERS
+from codilay.git_tracker import GitTracker, ChangeType
+from codilay.ui import UI
+from codilay.settings import Settings
 
 console = Console()
 
 
 def common_options(fn):
-    fn = click.option("--config", "-c", default=None, help="Path to codylay.config.json")(fn)
+    fn = click.option("--config", "-c", default=None, help="Path to codilay.config.json")(fn)
     fn = click.option("--output", "-o", default=None, help="Output directory")(fn)
     fn = click.option("--model", "-m", default=None, help="LLM model override")(fn)
     fn = click.option(
@@ -60,15 +60,15 @@ def common_options(fn):
 
 
 
-class CodyLayGroup(click.Group):
+class CodiLayGroup(click.Group):
     """
     Custom group that resolves ambiguity between a target path and
     subcommand names.
 
-    - ``codylay``              → interactive menu
-    - ``codylay setup``        → setup subcommand
-    - ``codylay .``            → auto-dispatches to ``run .``
-    - ``codylay /some/path``   → auto-dispatches to ``run /some/path``
+    - ``codilay``              → interactive menu
+    - ``codilay setup``        → setup subcommand
+    - ``codilay .``            → auto-dispatches to ``run .``
+    - ``codilay /some/path``   → auto-dispatches to ``run /some/path``
     """
 
     def resolve_command(self, ctx, args):
@@ -87,14 +87,14 @@ class CodyLayGroup(click.Group):
 
 
 @click.group(
-    cls=CodyLayGroup,
+    cls=CodiLayGroup,
     invoke_without_command=True,
 )
 @common_options
 @click.pass_context
 def cli(ctx, config, output, model, provider, base_url, verbose):
     """
-    CodyLay — AI Agent for Codebase Documentation.
+    CodiLay — AI Agent for Codebase Documentation.
 
     \b
     Run with no arguments for the interactive menu, or pass a
@@ -102,18 +102,18 @@ def cli(ctx, config, output, model, provider, base_url, verbose):
 
     \b
     Examples:
-        codylay                          Interactive menu
-        codylay .                        Document current directory
-        codylay /path/to/project         Document a specific project
-        codylay . -p openai -m gpt-4o    Use OpenAI
-        codylay . -p gemini              Use Google Gemini
-        codylay . -p ollama              Use local Ollama
-        codylay . -p groq                Use Groq
-        codylay . -p custom --base-url https://my-llm.com/v1 -m my-model
-        codylay . -v                     Verbose mode
-        codylay setup                    First-time setup wizard
-        codylay config                   View current settings
-        codylay keys                     Manage API keys
+        codilay                          Interactive menu
+        codilay .                        Document current directory
+        codilay /path/to/project         Document a specific project
+        codilay . -p openai -m gpt-4o    Use OpenAI
+        codilay . -p gemini              Use Google Gemini
+        codilay . -p ollama              Use local Ollama
+        codilay . -p groq                Use Groq
+        codilay . -p custom --base-url https://my-llm.com/v1 -m my-model
+        codilay . -v                     Verbose mode
+        codilay setup                    First-time setup wizard
+        codilay config                   View current settings
+        codilay keys                     Manage API keys
     """
     # ── Load persistent settings & inject API keys into env ────────
     settings = Settings.load()
@@ -152,7 +152,7 @@ def run(ctx, target):
     ui.show_banner()
 
     # ── Load Config ──────────────────────────────────────────────
-    cfg = CodyLayConfig.load(target, config_path)
+    cfg = CodiLayConfig.load(target, config_path)
 
     # Smart provider/model override:
     # - If provider is switched via CLI and no model given, reset model
@@ -171,9 +171,9 @@ def run(ctx, target):
 
     # ── Resolve paths ────────────────────────────────────────────
     if output_dir is None:
-        output_dir = os.path.join(target, "codylay")
+        output_dir = os.path.join(target, "codilay")
 
-    state_path = os.path.join(output_dir, ".codylay_state.json")
+    state_path = os.path.join(output_dir, ".codilay_state.json")
     codebase_md_path = os.path.join(output_dir, "CODEBASE.md")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -277,7 +277,7 @@ def run(ctx, target):
     if mode == "full" and cfg.triage_mode != "none":
         ui.phase("Phase 1.5 · Triage — Classifying files to save tokens")
 
-        from codylay.triage import Triage
+        from codilay.triage import Triage
 
         triage = Triage(llm_client=llm, config=cfg)
 
@@ -604,7 +604,7 @@ def _finalize_and_write(
     state_path, git, current_commit, current_commit_short,
 ):
     """Finalize documentation, write all output files, save state."""
-    from codylay.processor import Processor
+    from codilay.processor import Processor
 
     ui.phase("Phase 4 · Finalize — Assembling documentation")
 
@@ -681,19 +681,19 @@ def _finalize_and_write(
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
 def status(target):
-    """Show current CodyLay state for a project."""
+    """Show current CodiLay state for a project."""
     target = os.path.abspath(target)
-    output_dir = os.path.join(target, "codylay")
-    state_path = os.path.join(output_dir, ".codylay_state.json")
+    output_dir = os.path.join(target, "codilay")
+    state_path = os.path.join(output_dir, ".codilay_state.json")
 
     if not os.path.exists(state_path):
-        console.print("[yellow]No CodyLay state found for this project.[/yellow]")
+        console.print("[yellow]No CodiLay state found for this project.[/yellow]")
         console.print(f"[dim]Looked in: {state_path}[/dim]")
         return
 
     state = AgentState.load(state_path)
 
-    table = Table(title="CodyLay Status", box=box.ROUNDED)
+    table = Table(title="CodiLay Status", box=box.ROUNDED)
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
 
@@ -731,7 +731,7 @@ def status(target):
                         f"  [dim]… +{len(diff_result.changes) - 20} more[/dim]"
                     )
                 console.print(
-                    "\n[dim]Run [bold]codylay .[/bold] to update documentation.[/dim]"
+                    "\n[dim]Run [bold]codilay .[/bold] to update documentation.[/dim]"
                 )
             elif diff_result:
                 console.print(
@@ -765,14 +765,14 @@ def status(target):
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
 def diff(target):
-    """Show what has changed since the last CodyLay run."""
+    """Show what has changed since the last CodiLay run."""
     target = os.path.abspath(target)
-    output_dir = os.path.join(target, "codylay")
-    state_path = os.path.join(output_dir, ".codylay_state.json")
+    output_dir = os.path.join(target, "codilay")
+    state_path = os.path.join(output_dir, ".codilay_state.json")
 
     if not os.path.exists(state_path):
-        console.print("[yellow]No previous CodyLay run found.[/yellow]")
-        console.print("[dim]Run [bold]codylay .[/bold] first to create documentation.[/dim]")
+        console.print("[yellow]No previous CodiLay run found.[/yellow]")
+        console.print("[dim]Run [bold]codilay .[/bold] first to create documentation.[/dim]")
         return
 
     state = AgentState.load(state_path)
@@ -792,7 +792,7 @@ def diff(target):
             f"no longer exists.[/red]"
         )
         console.print("[dim]This can happen after a rebase or force push.[/dim]")
-        console.print("[dim]Run [bold]codylay .[/bold] and choose 'Full re-run'.[/dim]")
+        console.print("[dim]Run [bold]codilay .[/bold] and choose 'Full re-run'.[/dim]")
         return
 
     diff_result = git.get_full_diff(state.last_commit)
@@ -884,7 +884,7 @@ def diff(target):
         f"[bold]{len(diff_result.deleted)}[/bold] deletions to handle"
     )
     console.print(
-        "\n[dim]Run [bold]codylay .[/bold] to update documentation.[/dim]"
+        "\n[dim]Run [bold]codilay .[/bold] to update documentation.[/dim]"
     )
 
     # Show commits
@@ -903,13 +903,13 @@ def diff(target):
 @click.argument("target", default=".", type=click.Path(exists=True))
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def clean(target, yes):
-    """Remove all CodyLay generated files."""
+    """Remove all CodiLay generated files."""
     target = os.path.abspath(target)
-    output_dir = os.path.join(target, "codylay")
+    output_dir = os.path.join(target, "codilay")
 
     files_to_remove = []
     for fname in [
-        ".codylay_state.json",
+        ".codilay_state.json",
         "CODEBASE.md",
         "CODEBASE.md.bak",
         "links.json",
@@ -943,9 +943,9 @@ def clean(target, yes):
 @cli.command()
 @click.argument("target", default=".", type=click.Path(exists=True))
 def init(target):
-    """Create a codylay.config.json in the target directory."""
+    """Create a codilay.config.json in the target directory."""
     target = os.path.abspath(target)
-    config_path = os.path.join(target, "codylay.config.json")
+    config_path = os.path.join(target, "codilay.config.json")
 
     if os.path.exists(config_path):
         console.print(f"[yellow]Config already exists: {config_path}[/yellow]")
@@ -973,7 +973,7 @@ def init(target):
         json.dump(default_config, f, indent=2)
 
     console.print(f"[green]Created config:[/green] {config_path}")
-    console.print("[dim]Edit it to customize CodyLay behaviour for this project.[/dim]")
+    console.print("[dim]Edit it to customize CodiLay behaviour for this project.[/dim]")
 
 
 # ─── Interactive menu ─────────────────────────────────────────────────────────
@@ -982,7 +982,7 @@ def init(target):
 @click.pass_context
 def interactive(ctx):
     """Launch the interactive application menu."""
-    from codylay.menu import main_menu
+    from codilay.menu import main_menu
 
     settings: Settings = ctx.obj["settings"]
     result = main_menu(settings)
@@ -1004,7 +1004,7 @@ def interactive(ctx):
 @click.pass_context
 def setup(ctx):
     """Run the first-time setup wizard (configure API keys, provider, model)."""
-    from codylay.menu import _menu_setup
+    from codilay.menu import _menu_setup
 
     settings: Settings = ctx.obj["settings"]
     _menu_setup(settings)
@@ -1015,8 +1015,8 @@ def setup(ctx):
 @cli.command("config")
 @click.pass_context
 def show_config(ctx):
-    """View all current CodyLay settings."""
-    from codylay.menu import _menu_view_settings
+    """View all current CodiLay settings."""
+    from codilay.menu import _menu_view_settings
 
     settings: Settings = ctx.obj["settings"]
     _menu_view_settings(settings)
@@ -1028,7 +1028,7 @@ def show_config(ctx):
 @click.pass_context
 def keys(ctx):
     """Manage stored API keys (add, view, remove)."""
-    from codylay.menu import _menu_api_keys
+    from codilay.menu import _menu_api_keys
 
     settings: Settings = ctx.obj["settings"]
     _menu_api_keys(settings)

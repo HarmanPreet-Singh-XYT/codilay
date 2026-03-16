@@ -1,6 +1,6 @@
-# Contributing to CodyLay
+# Contributing to CodiLay
 
-First off, thank you for considering contributing to CodyLay! It's people like you that make it a great tool.
+First off, thank you for considering contributing to CodiLay! It's people like you that make it a great tool.
 
 ## Code of Conduct
 
@@ -44,17 +44,17 @@ By participating in this project, you agree to abide by our code of conduct (see
 
 Before contributing to the core logic, please read the "Core Concept — The Wire Model" section in the [README.md](README.md). This is the fundamental abstraction of the system.
 
-- **Wires** are managed in `src/codylay/wire_manager.py`.
-- **LLM Clients** are in `src/codylay/llm_client.py`.
-- **The processing loop** is in `src/codylay/processor.py`.
+- **Wires** are managed in `src/codilay/wire_manager.py`.
+- **LLM Clients** are in `src/codilay/llm_client.py`.
+- **The processing loop** is in `src/codilay/processor.py`.
 
 ## Development Setup
 
 We use `pip install -e .` for editable installs. 
 
 ```bash
-git clone https://github.com/HarmanPreet-Singh-XYT/codylay.git
-cd codylay
+git clone https://github.com/HarmanPreet-Singh-XYT/codilay.git
+cd codilay
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
