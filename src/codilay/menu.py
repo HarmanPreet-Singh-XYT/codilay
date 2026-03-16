@@ -134,8 +134,8 @@ def main_menu(settings: Settings) -> Optional[dict]:
         menu.add_row("[6]", "📊  View current settings")
         menu.add_row("[7]", "💬  Chat with your codebase")
         menu.add_row("[8]", "🌐  Launch Web UI")
-        menu.add_row("[t]", "🛠️   Tools & Automation")
-        menu.add_row("[9]", "❓  Help")
+        menu.add_row("[9]", "🛠️   Tools & Automation")
+        menu.add_row("[10]", "❓  Help")
         menu.add_row("[0]", "🚪  Exit")
 
         console.print(menu)
@@ -143,7 +143,7 @@ def main_menu(settings: Settings) -> Optional[dict]:
 
         choice = Prompt.ask(
             "[bold cyan]Select an option[/bold cyan]",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "t"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
             default="1",
         )
 
@@ -181,12 +181,12 @@ def main_menu(settings: Settings) -> Optional[dict]:
             if result:
                 return result
 
-        elif choice == "t":
+        elif choice == "9":
             result = _menu_tools(settings)
             if result:
                 return result
 
-        elif choice == "9":
+        elif choice == "10":
             _menu_help()
 
 
@@ -348,7 +348,7 @@ def _menu_setup(settings: Settings):
             "  • [bold]codilay search . -q[/bold] — search past conversations\n"
             "  • [bold]codilay schedule[/bold]    — scheduled re-runs\n"
             "  • [bold]codilay team[/bold]        — shared team memory\n\n"
-            "[dim]Explore all tools via the [bold]Tools & Automation[/bold] menu (press [bold]t[/bold]).[/dim]",
+            "[dim]Explore all tools via the [bold]Tools & Automation[/bold] menu (press [bold]9[/bold]).[/dim]",
             border_style="green",
         )
     )
