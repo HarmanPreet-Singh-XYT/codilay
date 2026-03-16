@@ -400,12 +400,14 @@ class UI:
         if not warnings:
             return
         self.console.print()
-        self.console.print(Panel(
-            "[bold yellow]Some files may require review:[/bold yellow]",
-            border_style="yellow",
-            title="[bold yellow]Warnings[/bold yellow]",
-            padding=(0, 2)
-        ))
+        self.console.print(
+            Panel(
+                "[bold yellow]Some files may require review:[/bold yellow]",
+                border_style="yellow",
+                title="[bold yellow]Warnings[/bold yellow]",
+                padding=(0, 2),
+            )
+        )
         for warning in warnings:
             self.console.print(f"  [yellow]⚠[/yellow] {warning}")
         self.console.print()
