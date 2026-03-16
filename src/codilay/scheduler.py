@@ -15,16 +15,13 @@ No external scheduler dependencies required — just threading and git polling.
 
 import json
 import os
-
 import subprocess
 import sys
-
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from rich.console import Console
-
 
 # ── Cron expression parser (minimal, no dependencies) ─────────────────────────
 

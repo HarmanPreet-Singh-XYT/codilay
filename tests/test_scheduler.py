@@ -12,7 +12,6 @@ from codilay.scheduler import (
     write_pid_file,
 )
 
-
 # ── CronExpression ───────────────────────────────────────────────────────────
 
 

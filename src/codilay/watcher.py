@@ -12,7 +12,6 @@ automatically re-runs the documentation pipeline on affected files.
 
 import fnmatch
 import os
-
 import threading
 import time
 from datetime import datetime, timezone

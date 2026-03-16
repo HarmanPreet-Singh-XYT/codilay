@@ -7,7 +7,6 @@ from typing import List
 
 from codilay.triage_feedback import TriageFeedbackEntry, TriageFeedbackStore
 
-
 # ── Mock TriageResult to mimic triage.py's dataclass ─────────────────────────
 
 

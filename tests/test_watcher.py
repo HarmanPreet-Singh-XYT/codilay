@@ -5,8 +5,7 @@ import tempfile
 import threading
 import time
 
-from codilay.watcher import ChangeAccumulator, CodiLayEventHandler, HAS_WATCHDOG
-
+from codilay.watcher import HAS_WATCHDOG, ChangeAccumulator, CodiLayEventHandler
 
 # ── ChangeAccumulator ────────────────────────────────────────────────────────
 

@@ -6,7 +6,6 @@ import tempfile
 
 from codilay.doc_differ import DocDiffer, DocDiffResult, DocVersionStore, SectionChange
 
-
 # ── DocDiffer ────────────────────────────────────────────────────────────────
 
 

@@ -6,7 +6,6 @@ import tempfile
 
 from codilay.search import ConversationSearch, SearchResults, _tokenize
 
-
 # ── Tokenizer ────────────────────────────────────────────────────────────────
 
 
