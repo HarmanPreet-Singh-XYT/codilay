@@ -4,50 +4,62 @@ CodiLay — AI Agent for Codebase Documentation
 CLI entry point.
 """
 
-import sys
-import os
 import json
+import os
+import sys
 from datetime import datetime, timezone
 
 import click
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.table import Table
 from rich import box
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+)
+from rich.table import Table
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from codilay.config import CodiLayConfig
-from codilay.scanner import Scanner
+from codilay.docstore import DocStore
+from codilay.llm_client import LLMClient
 from codilay.planner import Planner
 from codilay.processor import Processor
-from codilay.wire_manager import WireManager
-from codilay.docstore import DocStore
+from codilay.scanner import Scanner
 from codilay.state import AgentState
-from codilay.llm_client import LLMClient
 from codilay.ui import UI
+from codilay.wire_manager import WireManager
 
 console = Console()
 
 
 @click.group(invoke_without_command=True)
-@click.option('--target', '-t', default='.', help='Path to the codebase to document')
-@click.option('--config', '-c', default=None, help='Path to codilay.config.json')
-@click.option('--output', '-o', default=None, help='Output directory')
-@click.option('--model', '-m', default=None, help='LLM model override')
-@click.option('--provider', '-p', default='anthropic', type=click.Choice(['anthropic', 'openai']), help='LLM provider')
-@click.option('--verbose', '-v', is_flag=True, help='Verbose output')
+@click.option("--target", "-t", default=".", help="Path to the codebase to document")
+@click.option("--config", "-c", default=None, help="Path to codilay.config.json")
+@click.option("--output", "-o", default=None, help="Output directory")
+@click.option("--model", "-m", default=None, help="LLM model override")
+@click.option(
+    "--provider",
+    "-p",
+    default="anthropic",
+    type=click.Choice(["anthropic", "openai"]),
+    help="LLM provider",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.pass_context
 def cli(ctx, target, config, output, model, provider, verbose):
     """CodiLay — AI Agent for Codebase Documentation"""
     ctx.ensure_object(dict)
-    ctx.obj['target'] = os.path.abspath(target)
-    ctx.obj['config_path'] = config
-    ctx.obj['output'] = output
-    ctx.obj['model'] = model
-    ctx.obj['provider'] = provider
-    ctx.obj['verbose'] = verbose
+    ctx.obj["target"] = os.path.abspath(target)
+    ctx.obj["config_path"] = config
+    ctx.obj["output"] = output
+    ctx.obj["model"] = model
+    ctx.obj["provider"] = provider
+    ctx.obj["verbose"] = verbose
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(run)
@@ -57,12 +69,12 @@ def cli(ctx, target, config, output, model, provider, verbose):
 @click.pass_context
 def run(ctx):
     """Run CodiLay on a codebase (default command)"""
-    target = ctx.obj['target']
-    config_path = ctx.obj['config_path']
-    output_dir = ctx.obj['output']
-    model_override = ctx.obj['model']
-    provider = ctx.obj['provider']
-    verbose = ctx.obj['verbose']
+    target = ctx.obj["target"]
+    config_path = ctx.obj["config_path"]
+    output_dir = ctx.obj["output"]
+    model_override = ctx.obj["model"]
+    provider = ctx.obj["provider"]
+    verbose = ctx.obj["verbose"]
 
     ui = UI(console, verbose)
     ui.show_banner()
@@ -77,24 +89,24 @@ def run(ctx):
 
     # ── Check for existing state ─────────────────────────────────────
     if output_dir is None:
-        output_dir = os.path.join(target, 'output')
+        output_dir = os.path.join(target, "output")
 
-    state_path = os.path.join(output_dir, '.codilay_state.json')
-    codebase_md_path = os.path.join(output_dir, 'CODEBASE.md')
+    state_path = os.path.join(output_dir, ".codilay_state.json")
+    codebase_md_path = os.path.join(output_dir, "CODEBASE.md")
 
     existing_state = None
-    mode = 'full'
+    mode = "full"
 
     if os.path.exists(state_path) and os.path.exists(codebase_md_path):
         mode = ui.prompt_rerun_mode()
-        if mode == 'quit':
+        if mode == "quit":
             ui.info("Exiting.")
             return
-        if mode in ('update', 'specific'):
+        if mode in ("update", "specific"):
             existing_state = AgentState.load(state_path)
-        if mode == 'full':
+        if mode == "full":
             # Archive existing
-            bak_path = codebase_md_path + '.bak'
+            bak_path = codebase_md_path + ".bak"
             if os.path.exists(codebase_md_path):
                 os.rename(codebase_md_path, bak_path)
                 ui.info(f"Archived existing doc to {bak_path}")
@@ -124,7 +136,7 @@ def run(ctx):
     # ── Determine files to process ───────────────────────────────────
     files_to_process = all_files
 
-    if mode == 'update':
+    if mode == "update":
         changed = scanner.get_changed_files(state.processed)
         if not changed:
             ui.success("No changed files detected. Documentation is up to date!")
@@ -137,7 +149,7 @@ def run(ctx):
         ui.info(f"Re-opened {reopened} wires for changed files")
         docstore.load_from_state(state.section_index, state.section_contents)
 
-    elif mode == 'specific':
+    elif mode == "specific":
         specific = ui.prompt_specific_files(all_files)
         if not specific:
             ui.error("No valid files selected.")
@@ -155,18 +167,18 @@ def run(ctx):
     with ui.spinner("LLM is analyzing file structure..."):
         plan = planner.plan(file_tree_text, md_contents, files_to_process, state)
 
-    state.queue = plan.get('order', files_to_process)
-    state.parked = plan.get('parked', [])
-    state.park_reasons = plan.get('park_reasons', {})
-    skeleton = plan.get('skeleton', {})
+    state.queue = plan.get("order", files_to_process)
+    state.parked = plan.get("parked", [])
+    state.park_reasons = plan.get("park_reasons", {})
+    skeleton = plan.get("skeleton", {})
 
     ui.show_plan(state.queue, state.parked, skeleton)
 
     # Initialize docstore with skeleton
-    if mode == 'full':
+    if mode == "full":
         docstore.initialize_skeleton(
-            skeleton.get('doc_title', 'Codebase Reference'),
-            skeleton.get('suggested_sections', [])
+            skeleton.get("doc_title", "Codebase Reference"),
+            skeleton.get("suggested_sections", []),
         )
 
     # ── Phase 3: Processing Loop ─────────────────────────────────────
@@ -211,8 +223,8 @@ def run(ctx):
                 processed_count += 1
 
                 # Check for unparked files
-                if result and result.get('unpark'):
-                    for up in result['unpark']:
+                if result and result.get("unpark"):
+                    for up in result["unpark"]:
                         if up in state.parked:
                             state.parked.remove(up)
                             state.queue.append(up)
@@ -275,18 +287,18 @@ def run(ctx):
 
     # Write CODEBASE.md
     final_md = docstore.render_full_document()
-    with open(codebase_md_path, 'w', encoding='utf-8') as f:
+    with open(codebase_md_path, "w", encoding="utf-8") as f:
         f.write(final_md)
 
     # Write links.json
-    links_path = os.path.join(output_dir, 'links.json')
+    links_path = os.path.join(output_dir, "links.json")
     links_data = {
         "generated": datetime.now(timezone.utc).isoformat(),
         "project": os.path.basename(target),
         "closed": closed_wires,
         "open": open_wires,
     }
-    with open(links_path, 'w', encoding='utf-8') as f:
+    with open(links_path, "w", encoding="utf-8") as f:
         json.dump(links_data, f, indent=2)
 
     # Final state save
@@ -308,12 +320,12 @@ def run(ctx):
 
 
 @cli.command()
-@click.option('--target', '-t', default='.', help='Path to the codebase')
+@click.option("--target", "-t", default=".", help="Path to the codebase")
 def status(target):
     """Show current CodiLay state for a project"""
     console = Console()
-    output_dir = os.path.join(os.path.abspath(target), 'output')
-    state_path = os.path.join(output_dir, '.codilay_state.json')
+    output_dir = os.path.join(os.path.abspath(target), "output")
+    state_path = os.path.join(output_dir, ".codilay_state.json")
 
     if not os.path.exists(state_path):
         console.print("[yellow]No CodiLay state found for this project.[/yellow]")
@@ -337,13 +349,18 @@ def status(target):
 
 
 @cli.command()
-@click.option('--target', '-t', default='.', help='Path to the codebase')
+@click.option("--target", "-t", default=".", help="Path to the codebase")
 def clean(target):
     """Remove all CodiLay generated files"""
-    output_dir = os.path.join(os.path.abspath(target), 'output')
+    output_dir = os.path.join(os.path.abspath(target), "output")
     removed = []
 
-    for fname in ['.codilay_state.json', 'CODEBASE.md', 'CODEBASE.md.bak', 'links.json']:
+    for fname in [
+        ".codilay_state.json",
+        "CODEBASE.md",
+        "CODEBASE.md.bak",
+        "links.json",
+    ]:
         path = os.path.join(output_dir, fname)
         if os.path.exists(path):
             os.remove(path)
@@ -355,5 +372,5 @@ def clean(target):
         console.print("[yellow]Nothing to clean.[/yellow]")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

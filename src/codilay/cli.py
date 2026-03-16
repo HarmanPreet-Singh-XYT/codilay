@@ -13,42 +13,40 @@ Usage:
     codilay clean .                      Remove generated files
 """
 
-import os
 import json
+import os
 from datetime import datetime, timezone
 
 import click
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
 )
 from rich.table import Table
-from rich import box
 
 from codilay.config import CodiLayConfig
-from codilay.scanner import Scanner
+from codilay.docstore import DocStore
+from codilay.git_tracker import ChangeType, GitTracker
+from codilay.llm_client import ALL_PROVIDERS, LLMClient
 from codilay.planner import Planner
 from codilay.processor import Processor
-from codilay.wire_manager import WireManager
-from codilay.docstore import DocStore
-from codilay.state import AgentState
-from codilay.llm_client import LLMClient, ALL_PROVIDERS
-from codilay.git_tracker import GitTracker, ChangeType
-from codilay.ui import UI
+from codilay.scanner import Scanner
 from codilay.settings import Settings
+from codilay.state import AgentState
+from codilay.ui import UI
+from codilay.wire_manager import WireManager
 
 console = Console()
 
 
 def common_options(fn):
-    fn = click.option(
-        "--config", "-c", default=None, help="Path to codilay.config.json"
-    )(fn)
+    fn = click.option("--config", "-c", default=None, help="Path to codilay.config.json")(fn)
     fn = click.option("--output", "-o", default=None, help="Output directory")(fn)
     fn = click.option("--model", "-m", default=None, help="LLM model override")(fn)
     fn = click.option(
@@ -262,10 +260,7 @@ def run(ctx, target):
         all_files = scanner.get_all_files()
         md_contents = scanner.preload_md_files()
 
-    ui.info(
-        f"Found [bold]{len(all_files)}[/bold] files "
-        f"({len(md_contents)} markdown preloaded)"
-    )
+    ui.info(f"Found [bold]{len(all_files)}[/bold] files ({len(md_contents)} markdown preloaded)")
     if verbose:
         ui.show_file_tree(file_tree_text)
 
@@ -284,9 +279,7 @@ def run(ctx, target):
 
         if cfg.triage_mode == "smart":
             with ui.spinner("LLM is classifying files (tree only, no content)…"):
-                triage_result = triage.smart_triage(
-                    file_tree_text, all_files, md_contents
-                )
+                triage_result = triage.smart_triage(file_tree_text, all_files, md_contents)
         else:
             with ui.spinner("Classifying files by pattern…"):
                 triage_result = triage.fast_triage(all_files)
@@ -329,15 +322,10 @@ def run(ctx, target):
             ]
             if test_files:
                 triage_result.move_to_skip(test_files)
-                ui.info(
-                    f"Skipped {len(test_files)} test files "
-                    f"(set triage.includeTests: true to include)"
-                )
+                ui.info(f"Skipped {len(test_files)} test files (set triage.includeTests: true to include)")
 
         # Estimate savings
-        triage_result.token_estimate_saved = triage.estimate_tokens_saved(
-            triage_result.skip, target
-        )
+        triage_result.token_estimate_saved = triage.estimate_tokens_saved(triage_result.skip, target)
 
         # Show results and get user confirmation
         ui.show_triage_result(triage_result, triage_result.project_type)
@@ -453,9 +441,7 @@ def run(ctx, target):
             return
         files_to_process = changed
         wires_reopened = wire_mgr.reopen_wires_for_files(changed)
-        ui.info(
-            f"Detected {len(changed)} changed files, re-opened {wires_reopened} wires"
-        )
+        ui.info(f"Detected {len(changed)} changed files, re-opened {wires_reopened} wires")
 
     elif mode == "specific":
         specific = ui.prompt_specific_files(all_files)
@@ -477,9 +463,7 @@ def run(ctx, target):
 
         state.queue = plan["order"]
         state.parked = plan.get("parked", []) if mode == "full" else state.parked
-        state.park_reasons = (
-            plan.get("park_reasons", {}) if mode == "full" else state.park_reasons
-        )
+        state.park_reasons = plan.get("park_reasons", {}) if mode == "full" else state.park_reasons
         skeleton = plan["skeleton"]
 
         ui.show_plan(state.queue, state.parked, skeleton)
@@ -647,7 +631,6 @@ def _finalize_and_write(
     with ui.spinner("Running finalization pass…"):
         processor.finalize(scanner.get_file_tree())
 
-
     open_wires = wire_mgr.get_open_wires()
     closed_wires = wire_mgr.get_closed_wires()
 
@@ -705,10 +688,7 @@ def _finalize_and_write(
     )
 
     if current_commit_short:
-        ui.info(
-            f"Documented at commit [cyan]{current_commit_short}[/cyan] — "
-            f"next run will diff from here"
-        )
+        ui.info(f"Documented at commit [cyan]{current_commit_short}[/cyan] — next run will diff from here")
 
 
 # ─── Status command ───────────────────────────────────────────────────────────
@@ -763,16 +743,10 @@ def status(target):
                 for line in diff_result.summary_lines[:20]:
                     console.print(line)
                 if len(diff_result.changes) > 20:
-                    console.print(
-                        f"  [dim]… +{len(diff_result.changes) - 20} more[/dim]"
-                    )
-                console.print(
-                    "\n[dim]Run [bold]codilay .[/bold] to update documentation.[/dim]"
-                )
+                    console.print(f"  [dim]… +{len(diff_result.changes) - 20} more[/dim]")
+                console.print("\n[dim]Run [bold]codilay .[/bold] to update documentation.[/dim]")
             elif diff_result:
-                console.print(
-                    "\n[green]✓ Documentation is up to date with HEAD.[/green]"
-                )
+                console.print("\n[green]✓ Documentation is up to date with HEAD.[/green]")
         else:
             console.print(
                 f"\n[yellow]⚠ Last documented commit "
@@ -786,10 +760,7 @@ def status(target):
             ctx = ""
             if "[DELETED]" in w.get("context", ""):
                 ctx = " [red](file deleted)[/red]"
-            console.print(
-                f"  [yellow]→[/yellow] {w['from']} → {w['to']} "
-                f"[dim]({w['type']})[/dim]{ctx}"
-            )
+            console.print(f"  [yellow]→[/yellow] {w['from']} → {w['to']} [dim]({w['type']})[/dim]{ctx}")
         if len(state.open_wires) > 15:
             console.print(f"  [dim]  … +{len(state.open_wires) - 15} more[/dim]")
 
@@ -807,9 +778,7 @@ def diff(target):
 
     if not os.path.exists(state_path):
         console.print("[yellow]No previous CodiLay run found.[/yellow]")
-        console.print(
-            "[dim]Run [bold]codilay .[/bold] first to create documentation.[/dim]"
-        )
+        console.print("[dim]Run [bold]codilay .[/bold] first to create documentation.[/dim]")
         return
 
     state = AgentState.load(state_path)
@@ -820,16 +789,11 @@ def diff(target):
         return
 
     if not state.last_commit:
-        console.print(
-            "[yellow]No commit recorded in state. Run a full documentation pass first.[/yellow]"
-        )
+        console.print("[yellow]No commit recorded in state. Run a full documentation pass first.[/yellow]")
         return
 
     if not git.is_commit_valid(state.last_commit):
-        console.print(
-            f"[red]Last documented commit {state.last_commit_short} "
-            f"no longer exists.[/red]"
-        )
+        console.print(f"[red]Last documented commit {state.last_commit_short} no longer exists.[/red]")
         console.print("[dim]This can happen after a rebase or force push.[/dim]")
         console.print("[dim]Run [bold]codilay .[/bold] and choose 'Full re-run'.[/dim]")
         return
@@ -840,10 +804,7 @@ def diff(target):
         return
 
     if not diff_result.changes:
-        console.print(
-            f"[green]✓ No changes since commit "
-            f"{state.last_commit_short}. Documentation is current.[/green]"
-        )
+        console.print(f"[green]✓ No changes since commit {state.last_commit_short}. Documentation is current.[/green]")
         return
 
     # Header
@@ -880,9 +841,7 @@ def diff(target):
                 affected_wires = [
                     w
                     for w in state.closed_wires
-                    if w.get("from") == change.path
-                    or w.get("to") == change.path
-                    or w.get("resolved_in") == change.path
+                    if w.get("from") == change.path or w.get("to") == change.path or w.get("resolved_in") == change.path
                 ]
                 impact_parts.append(f"re-process, {len(affected_wires)} wires affected")
             else:
@@ -891,12 +850,8 @@ def diff(target):
         elif change.change_type == ChangeType.DELETED:
             status_str = "[red]deleted[/red]"
             if was_processed:
-                affected_wires = [
-                    w for w in state.closed_wires if w.get("resolved_in") == change.path
-                ]
-                impact_parts.append(
-                    f"section marked deleted, {len(affected_wires)} wires re-opened"
-                )
+                affected_wires = [w for w in state.closed_wires if w.get("resolved_in") == change.path]
+                impact_parts.append(f"section marked deleted, {len(affected_wires)} wires re-opened")
             else:
                 impact_parts.append("was not documented")
 
@@ -1093,9 +1048,7 @@ def keys(ctx):
 @click.argument("target", default=".", type=click.Path(exists=True))
 @click.option("--port", "-P", default=8484, help="Port to serve on")
 @click.option("--host", "-H", default="127.0.0.1", help="Host to bind to")
-@click.option(
-    "--output", "-o", default=None, help="Output directory containing codilay files"
-)
+@click.option("--output", "-o", default=None, help="Output directory containing codilay files")
 def serve(target, port, host, output):
     """Launch the CodiLay web UI for browsing documentation.
 
@@ -1148,9 +1101,7 @@ def serve(target, port, host, output):
 @click.option("--resume", "-r", is_flag=True, help="Resume last conversation")
 @click.option("--list", "-l", "list_convs", is_flag=True, help="List past conversations")
 @click.option("--conversation", "-c", default=None, help="Resume a specific conversation by ID")
-@click.option(
-    "--output", "-o", default=None, help="Output directory containing codilay files"
-)
+@click.option("--output", "-o", default=None, help="Output directory containing codilay files")
 @click.pass_context
 def chat(ctx, target, resume, list_convs, conversation, output):
     """Start an interactive chat about your codebase.
@@ -1316,19 +1267,16 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                     console.print("[dim]Promoting to documentation...[/dim]")
                     try:
                         from codilay.docstore import DocStore
+
                         docstore = DocStore()
                         docstore.load_from_state(state.section_index, state.section_contents)
-                        section_id = chat_store.promote_to_doc(
-                            conv_id, last_msg_id, docstore, llm
-                        )
+                        section_id = chat_store.promote_to_doc(conv_id, last_msg_id, docstore, llm)
                         if section_id:
                             # Re-render CODEBASE.md
                             final_md = docstore.render_full_document()
                             with open(codebase_md, "w", encoding="utf-8") as f:
                                 f.write(final_md)
-                            console.print(
-                                f'[green]✓ Promoted to doc section "[cyan]{section_id}[/cyan]"[/green]'
-                            )
+                            console.print(f'[green]✓ Promoted to doc section "[cyan]{section_id}[/cyan]"[/green]')
                         else:
                             console.print("[red]Could not promote (LLM error).[/red]")
                     except Exception as e:
@@ -1345,6 +1293,7 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                     conv = chat_store.get_conversation(conv_id)
                     title = conv.get("title", "chat") if conv else "chat"
                     from codilay.chatstore import _slugify
+
                     fname = f"{_slugify(title)}.md"
                     fpath = os.path.join(export_dir, fname)
                     with open(fpath, "w", encoding="utf-8") as f:
@@ -1357,9 +1306,7 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                     branch = chat_store.branch_conversation(conv_id, last_msg_id)
                     if branch:
                         conv_id = branch["id"]
-                        console.print(
-                            f"[green]✓ Branched! Now in conversation {conv_id[:8]}…[/green]"
-                        )
+                        console.print(f"[green]✓ Branched! Now in conversation {conv_id[:8]}…[/green]")
                     else:
                         console.print("[red]Could not branch.[/red]")
                 continue
@@ -1402,9 +1349,7 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                             break
                     if match:
                         conv_id = match["id"]
-                        console.print(
-                            f"[green]✓ Resumed: {match.get('title', 'Untitled')}[/green]"
-                        )
+                        console.print(f"[green]✓ Resumed: {match.get('title', 'Untitled')}[/green]")
                     else:
                         console.print(f"[red]No conversation matching '{cmd_arg}'[/red]")
                 else:
@@ -1437,10 +1382,18 @@ def chat(ctx, target, resume, list_convs, conversation, output):
         def _should_escalate_by_keyword(question: str) -> bool:
             q = question.lower()
             deep_patterns = [
-                "show me the code", "show the code", "exactly how", "line by line",
-                "implementation detail", "source code", "what does the code",
-                "read the file", "look at the file", "open the file",
-                "specific implementation", "actual code"
+                "show me the code",
+                "show the code",
+                "exactly how",
+                "line by line",
+                "implementation detail",
+                "source code",
+                "what does the code",
+                "read the file",
+                "look at the file",
+                "open the file",
+                "specific implementation",
+                "actual code",
             ]
             return any(p in q for p in deep_patterns)
 
@@ -1453,9 +1406,7 @@ def chat(ctx, target, resume, list_convs, conversation, output):
         pinned_msgs = chat_store.get_pinned_messages(conv_id)
         pinned_ctx = ""
         if pinned_msgs:
-            pinned_ctx = "\n\n".join(
-                f"- {m['content'][:200]}" for m in pinned_msgs[:5]
-            )
+            pinned_ctx = "\n\n".join(f"- {m['content'][:200]}" for m in pinned_msgs[:5])
 
         # Build conversation history
         chat_context = chat_store.build_chat_context(conv_id, max_messages=10)
@@ -1517,12 +1468,10 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                     if not answer or confidence < 0.7:
                         should_deep = True
                         reason = "Doc context insufficient" if answer else "No clear answer from docs"
-                        console.print(
-                            f"[dim]{reason} — escalating to deep agent...[/dim]"
-                        )
+                        console.print(f"[dim]{reason} — escalating to deep agent...[/dim]")
                 except Exception as e:
                     console.print(f"[red]Error: {e}[/red]")
-                    should_deep = True # Fallback to deep agent if Doc search fails
+                    should_deep = True  # Fallback to deep agent if Doc search fails
             else:
                 should_deep = True
                 console.print("[dim]No relevant documentation found — searching source code...[/dim]")
@@ -1557,11 +1506,7 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                 doc_ctx = ""
                 if relevant:
                     doc_parts = [sec.formatted for sec in relevant[:3]]
-                    doc_ctx = (
-                        "Documentation context:\n\n"
-                        + "\n---\n".join(doc_parts)
-                        + "\n\n---\n\n"
-                    )
+                    doc_ctx = "Documentation context:\n\n" + "\n---\n".join(doc_parts) + "\n\n---\n\n"
 
                 system = (
                     "You are a deep codebase analysis agent. You have access to actual "
@@ -1572,9 +1517,7 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                     "entire response in a JSON object or any other format."
                 )
                 user_prompt = (
-                    f"{doc_ctx}{history_text}\n\n"
-                    f"Source code:\n\n{source_context}\n\n---\n\n"
-                    f"Question: {user_input}"
+                    f"{doc_ctx}{history_text}\n\nSource code:\n\n{source_context}\n\n---\n\nQuestion: {user_input}"
                 )
 
                 try:
@@ -1586,18 +1529,14 @@ def chat(ctx, target, resume, list_convs, conversation, output):
                     console.print(f"[red]Deep analysis failed: {e}[/red]")
                     continue
             else:
-                answer = (
-                    "I couldn't find relevant source files. "
-                    "Try mentioning specific file or module names."
-                )
+                answer = "I couldn't find relevant source files. Try mentioning specific file or module names."
 
         # ── Display answer ────────────────────────────────────────
         console.print()
         console.print(
             Panel(
                 answer,
-                title="[bold blue]CodiLay[/bold blue]"
-                + (" [yellow]🔍 deep[/yellow]" if escalated else ""),
+                title="[bold blue]CodiLay[/bold blue]" + (" [yellow]🔍 deep[/yellow]" if escalated else ""),
                 border_style="blue",
                 padding=(1, 2),
             )
@@ -1673,7 +1612,4 @@ def _show_memory(console, memory):
         for t, c in sorted_topics[:10]:
             lines.append(f"  {t} ({c}×)")
 
-    console.print(
-        Panel("\n".join(lines), border_style="yellow", title="memory")
-    )
-
+    console.print(Panel("\n".join(lines), border_style="yellow", title="memory"))

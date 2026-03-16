@@ -10,7 +10,7 @@ new sessions, etc.  They hold:
 
 import json
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -22,34 +22,35 @@ SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 # ── Provider metadata (label + env var name, for display only) ────────────────
 
 PROVIDER_META = {
-    "anthropic":  {"label": "Anthropic (Claude)",   "env_key": "ANTHROPIC_API_KEY"},
-    "openai":     {"label": "OpenAI",               "env_key": "OPENAI_API_KEY"},
-    "gemini":     {"label": "Google Gemini",         "env_key": "GEMINI_API_KEY"},
-    "deepseek":   {"label": "DeepSeek",             "env_key": "DEEPSEEK_API_KEY"},
-    "mistral":    {"label": "Mistral AI",           "env_key": "MISTRAL_API_KEY"},
-    "groq":       {"label": "Groq",                 "env_key": "GROQ_API_KEY"},
-    "xai":        {"label": "xAI (Grok)",           "env_key": "XAI_API_KEY"},
-    "llama":      {"label": "Llama Cloud (Meta)",   "env_key": "LLAMA_API_KEY"},
-    "ollama":     {"label": "Ollama (local)",        "env_key": None},
-    "custom":     {"label": "Custom endpoint",      "env_key": "CUSTOM_LLM_API_KEY"},
+    "anthropic": {"label": "Anthropic (Claude)", "env_key": "ANTHROPIC_API_KEY"},
+    "openai": {"label": "OpenAI", "env_key": "OPENAI_API_KEY"},
+    "gemini": {"label": "Google Gemini", "env_key": "GEMINI_API_KEY"},
+    "deepseek": {"label": "DeepSeek", "env_key": "DEEPSEEK_API_KEY"},
+    "mistral": {"label": "Mistral AI", "env_key": "MISTRAL_API_KEY"},
+    "groq": {"label": "Groq", "env_key": "GROQ_API_KEY"},
+    "xai": {"label": "xAI (Grok)", "env_key": "XAI_API_KEY"},
+    "llama": {"label": "Llama Cloud (Meta)", "env_key": "LLAMA_API_KEY"},
+    "ollama": {"label": "Ollama (local)", "env_key": None},
+    "custom": {"label": "Custom endpoint", "env_key": "CUSTOM_LLM_API_KEY"},
 }
 
 # Default models per provider
 DEFAULT_MODELS = {
-    "anthropic":  "claude-sonnet-4-20250514",
-    "openai":     "gpt-4o",
-    "gemini":     "gemini-2.0-flash",
-    "deepseek":   "deepseek-chat",
-    "mistral":    "mistral-large-latest",
-    "groq":       "llama-3.3-70b-versatile",
-    "xai":        "grok-2-latest",
-    "llama":      "Llama-4-Maverick-17B-128E",
-    "ollama":     "llama3.2",
-    "custom":     None,
+    "anthropic": "claude-sonnet-4-20250514",
+    "openai": "gpt-4o",
+    "gemini": "gemini-2.0-flash",
+    "deepseek": "deepseek-chat",
+    "mistral": "mistral-large-latest",
+    "groq": "llama-3.3-70b-versatile",
+    "xai": "grok-2-latest",
+    "llama": "Llama-4-Maverick-17B-128E",
+    "ollama": "llama3.2",
+    "custom": None,
 }
 
 
 # ── Data class ────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Settings:
@@ -60,12 +61,12 @@ class Settings:
 
     # Preferred defaults
     default_provider: str = "anthropic"
-    default_model: Optional[str] = None          # None → provider default
-    custom_base_url: Optional[str] = None        # for 'custom' provider
+    default_model: Optional[str] = None  # None → provider default
+    custom_base_url: Optional[str] = None  # for 'custom' provider
 
     # Behaviour
     verbose: bool = False
-    triage_mode: str = "smart"                   # smart | fast | none
+    triage_mode: str = "smart"  # smart | fast | none
     include_tests: bool = False
     max_tokens_per_call: int = 4096
 
@@ -79,8 +80,7 @@ class Settings:
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return cls(**{k: v for k, v in data.items()
-                         if k in cls.__dataclass_fields__})
+            return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
         except (json.JSONDecodeError, TypeError):
             return cls()
 

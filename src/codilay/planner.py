@@ -1,9 +1,9 @@
 """Planner — uses LLM to determine optimal file processing order."""
 
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 from codilay.llm_client import LLMClient
-from codilay.prompts import system_prompt, planning_prompt
+from codilay.prompts import planning_prompt, system_prompt
 from codilay.state import AgentState
 
 
@@ -29,9 +29,7 @@ class Planner:
         result = self.llm.call(sys_prompt, user_prompt)
         return self._validate_plan(result, files)
 
-    def _validate_plan(
-        self, result: Dict[str, Any], all_files: List[str]
-    ) -> Dict[str, Any]:
+    def _validate_plan(self, result: Dict[str, Any], all_files: List[str]) -> Dict[str, Any]:
         all_files_set = set(all_files)
 
         # Validate order
@@ -65,9 +63,7 @@ class Planner:
             skeleton = {}
         if "doc_title" not in skeleton:
             skeleton["doc_title"] = "Codebase Reference"
-        if "suggested_sections" not in skeleton or not isinstance(
-            skeleton["suggested_sections"], list
-        ):
+        if "suggested_sections" not in skeleton or not isinstance(skeleton["suggested_sections"], list):
             skeleton["suggested_sections"] = [
                 "Overview",
                 "Entry Points",

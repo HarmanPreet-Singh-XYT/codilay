@@ -55,3 +55,26 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 codilay = ["web/*.html"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "build",
+    "dist",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = []
+per-file-ignores = { "__init__.py" = ["F401"], "src/codilay/prompts.py" = ["E501"], "src/codilay/server.py" = ["E501"], "src/codilay/menu.py" = ["E501"] }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

@@ -2,20 +2,20 @@
 
 import os
 import re
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
-from codilay.llm_client import LLMClient
-from codilay.wire_manager import WireManager
-from codilay.docstore import DocStore
-from codilay.state import AgentState
 from codilay.chunker import Chunker
+from codilay.docstore import DocStore
+from codilay.llm_client import LLMClient
 from codilay.prompts import (
-    system_prompt,
-    processing_prompt,
-    finalize_prompt,
-    skeleton_prompt,
     detail_prompt,
+    finalize_prompt,
+    processing_prompt,
+    skeleton_prompt,
+    system_prompt,
 )
+from codilay.state import AgentState
+from codilay.wire_manager import WireManager
 
 
 class Processor:
@@ -49,10 +49,7 @@ class Processor:
         # Truncate absurdly large files
         max_chars = self.config.max_file_size
         if len(content) > max_chars:
-            content = (
-                content[:max_chars]
-                + f"\n\n... [TRUNCATED — {len(content)} chars, showing first {max_chars}]"
-            )
+            content = content[:max_chars] + f"\n\n... [TRUNCATED — {len(content)} chars, showing first {max_chars}]"
 
         # Create chunking plan
         plan = self.chunker.plan(file_path, content)
@@ -124,8 +121,7 @@ class Processor:
         2. Detail passes — one per structural chunk
         """
         self.ui.info(
-            f"  [cyan]Large file ({plan.total_tokens} tokens) → "
-            f"skeleton + {plan.chunk_count} detail passes[/cyan]"
+            f"  [cyan]Large file ({plan.total_tokens} tokens) → skeleton + {plan.chunk_count} detail passes[/cyan]"
         )
 
         # ── Pass 1: Skeleton ─────────────────────────────────────
@@ -151,7 +147,9 @@ class Processor:
 
         # Get the section ID that was created
         new_sec = skeleton_result.get("new_section", {})
-        skeleton_section_id = new_sec.get("id", self._path_to_id(file_path)) if isinstance(new_sec, dict) else self._path_to_id(file_path)
+        skeleton_section_id = (
+            new_sec.get("id", self._path_to_id(file_path)) if isinstance(new_sec, dict) else self._path_to_id(file_path)
+        )
         skeleton_content = new_sec.get("content", "") if isinstance(new_sec, dict) else ""
 
         # Get interesting symbols for prioritization
@@ -175,17 +173,16 @@ class Processor:
             # Filter to wires relevant to this chunk
             chunk_symbols = set(s.lower() for s in chunk.symbols)
             relevant_wires = [
-                w for w in open_wires
-                if w.get("from") == file_path or
-                w.get("to") == file_path or
-                any(s in w.get("to", "").lower() for s in chunk_symbols) or
-                any(s in w.get("context", "").lower() for s in chunk_symbols)
+                w
+                for w in open_wires
+                if w.get("from") == file_path
+                or w.get("to") == file_path
+                or any(s in w.get("to", "").lower() for s in chunk_symbols)
+                or any(s in w.get("context", "").lower() for s in chunk_symbols)
             ][:15]
 
             # Get current skeleton content (may have been patched)
-            current_skeleton = self.docstore.get_section_contents().get(
-                skeleton_section_id, skeleton_content
-            )
+            current_skeleton = self.docstore.get_section_contents().get(skeleton_section_id, skeleton_content)
 
             detail_user_prompt = detail_prompt(
                 file_path=file_path,
@@ -201,7 +198,7 @@ class Processor:
             detail_result = self.llm.call(self._sys_prompt, detail_user_prompt)
 
             if "error" in detail_result:
-                self.ui.warn(f"    Detail pass {i+1} failed: {detail_result.get('error')}")
+                self.ui.warn(f"    Detail pass {i + 1} failed: {detail_result.get('error')}")
                 continue
 
             # Apply detail result
@@ -212,10 +209,7 @@ class Processor:
             total_closed += closed
             total_opened += opened
 
-            self.ui.debug(
-                f"    Detail {i+1}/{len(prioritized_chunks)}: {chunk.label} "
-                f"(↓{closed} ↑{opened})"
-            )
+            self.ui.debug(f"    Detail {i + 1}/{len(prioritized_chunks)}: {chunk.label} (↓{closed} ↑{opened})")
 
         # Reprioritize queue after all passes
         self.state.queue = self.wire_mgr.reprioritize_queue(self.state.queue)
@@ -242,9 +236,7 @@ class Processor:
 
         return sorted(chunks, key=score, reverse=True)
 
-    def _apply_result(
-        self, file_path: str, result: Dict, wires_to_this: List[Dict]
-    ):
+    def _apply_result(self, file_path: str, result: Dict, wires_to_this: List[Dict]):
         """Apply LLM processing result to docstore and wire manager."""
         new_section = result.get("new_section")
         if new_section and isinstance(new_section, dict):
@@ -275,7 +267,8 @@ class Processor:
         for w in wires_to_this:
             if w["id"] not in (wires_closed or []):
                 self.wire_mgr.close_wire(
-                    w["id"], resolved_in=file_path,
+                    w["id"],
+                    resolved_in=file_path,
                     summary=f"Resolved by processing {file_path}",
                 )
 
@@ -405,7 +398,8 @@ class Processor:
                 imports.append(imp)
         for match in re.finditer(
             r"(?:import\s+.*?from\s+['\"]([^'\"]+)['\"]"
-            r"|require\s*\(\s*['\"]([^'\"]+)['\"]\s*\))", content,
+            r"|require\s*\(\s*['\"]([^'\"]+)['\"]\s*\))",
+            content,
         ):
             imp = match.group(1) or match.group(2)
             if imp:
@@ -444,11 +438,7 @@ class Processor:
         Returns {'file': ..., 'section_id': ...} or None.
         """
         # 1. Check if it's the current file (self-reference)
-        if (
-            target_str == current_file
-            or current_file.endswith("/" + target_str)
-            or target_str in current_file
-        ):
+        if target_str == current_file or current_file.endswith("/" + target_str) or target_str in current_file:
             return {"file": current_file, "section_id": self._path_to_id(current_file)}
 
         # 2. Check already documented sections
@@ -457,7 +447,7 @@ class Processor:
 
         for sid, meta in index.items():
             fpath = meta.get("file", "")
-            
+
             # Match by exact file path or suffix
             if fpath == target_str or (fpath and fpath.endswith("/" + target_str)):
                 return {"file": fpath, "section_id": sid}
@@ -466,7 +456,7 @@ class Processor:
             tags = [t.lower() for t in meta.get("tags", [])]
             if target_lower in tags:
                 return {"file": fpath, "section_id": sid}
-                
+
             # Match by section ID
             if sid == target_lower or sid.replace("-", "") == target_lower.replace("-", ""):
                 return {"file": fpath, "section_id": sid}

@@ -14,7 +14,6 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-
 # ── Scored result ─────────────────────────────────────────────────────────────
 
 
@@ -42,20 +41,116 @@ class ScoredSection:
 
 # ── Tokenizer ────────────────────────────────────────────────────────────────
 
-_STOP_WORDS = frozenset({
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "in", "on", "at", "to",
-    "for", "of", "with", "by", "from", "as", "into", "through", "during",
-    "before", "after", "above", "below", "between", "out", "off", "over",
-    "under", "again", "further", "then", "once", "here", "there", "when",
-    "where", "why", "how", "all", "each", "every", "both", "few", "more",
-    "most", "other", "some", "such", "no", "nor", "not", "only", "own",
-    "same", "so", "than", "too", "very", "just", "because", "but", "and",
-    "or", "if", "while", "about", "what", "which", "who", "whom", "this",
-    "that", "these", "those", "it", "its", "i", "me", "my", "we", "our",
-    "you", "your", "he", "she", "they", "them", "their",
-})
+_STOP_WORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "here",
+        "there",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "because",
+        "but",
+        "and",
+        "or",
+        "if",
+        "while",
+        "about",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "i",
+        "me",
+        "my",
+        "we",
+        "our",
+        "you",
+        "your",
+        "he",
+        "she",
+        "they",
+        "them",
+        "their",
+    }
+)
 
 _TOKEN_RE = re.compile(r"[a-z][a-z0-9_]*", re.IGNORECASE)
 
@@ -172,14 +267,16 @@ class Retriever:
                     score *= 1.5
 
             if score > 0:
-                scored.append(ScoredSection(
-                    section_id=sid,
-                    title=sec["title"],
-                    file=sec.get("file", ""),
-                    tags=sec.get("tags", []),
-                    content=sec.get("content", ""),
-                    score=score,
-                ))
+                scored.append(
+                    ScoredSection(
+                        section_id=sid,
+                        title=sec["title"],
+                        file=sec.get("file", ""),
+                        tags=sec.get("tags", []),
+                        content=sec.get("content", ""),
+                        score=score,
+                    )
+                )
 
         scored.sort(key=lambda x: x.score, reverse=True)
         return scored[:top_k]
@@ -189,14 +286,16 @@ class Retriever:
         results = []
         for sid, sec in self._sections.items():
             if sec.get("file") == file_path:
-                results.append(ScoredSection(
-                    section_id=sid,
-                    title=sec["title"],
-                    file=sec.get("file", ""),
-                    tags=sec.get("tags", []),
-                    content=sec.get("content", ""),
-                    score=1.0,
-                ))
+                results.append(
+                    ScoredSection(
+                        section_id=sid,
+                        title=sec["title"],
+                        file=sec.get("file", ""),
+                        tags=sec.get("tags", []),
+                        content=sec.get("content", ""),
+                        score=1.0,
+                    )
+                )
         return results
 
     def search_by_tags(self, tags: List[str]) -> List[ScoredSection]:
@@ -207,14 +306,16 @@ class Retriever:
             sec_tags = set(t.lower() for t in sec.get("tags", []))
             overlap = sec_tags & tag_set
             if overlap:
-                results.append(ScoredSection(
-                    section_id=sid,
-                    title=sec["title"],
-                    file=sec.get("file", ""),
-                    tags=sec.get("tags", []),
-                    content=sec.get("content", ""),
-                    score=len(overlap) / len(tag_set),
-                ))
+                results.append(
+                    ScoredSection(
+                        section_id=sid,
+                        title=sec["title"],
+                        file=sec.get("file", ""),
+                        tags=sec.get("tags", []),
+                        content=sec.get("content", ""),
+                        score=len(overlap) / len(tag_set),
+                    )
+                )
         results.sort(key=lambda x: x.score, reverse=True)
         return results
 
@@ -298,11 +399,11 @@ class Retriever:
         d_norm = 0.0
 
         for term, q_val in q_tfidf.items():
-            q_norm += q_val ** 2
+            q_norm += q_val**2
             d_tf = doc_tf.get(term, 0)
             d_idf = self._idf.get(term, 0)
             d_val = d_tf * d_idf
-            d_norm += d_val ** 2
+            d_norm += d_val**2
             dot_product += q_val * d_val
 
         if q_norm == 0 or d_norm == 0:

@@ -11,25 +11,26 @@ Flow:
      d. Return skeleton + ordered chunks
 """
 
-import re
 import os
-from typing import List, Dict, Optional
+import re
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Dict, List, Optional
 
 
 class ChunkType(str, Enum):
-    FULL = "full"           # Entire file, no splitting needed
-    SKELETON = "skeleton"   # Imports + signatures only
-    DETAIL = "detail"       # A structural block (class, function group)
+    FULL = "full"  # Entire file, no splitting needed
+    SKELETON = "skeleton"  # Imports + signatures only
+    DETAIL = "detail"  # A structural block (class, function group)
 
 
 @dataclass
 class FileChunk:
     """A single chunk of a file."""
+
     chunk_type: ChunkType
     content: str
-    label: str = ""             # Human-readable label like "class UserService"
+    label: str = ""  # Human-readable label like "class UserService"
     start_line: int = 0
     end_line: int = 0
     token_count: int = 0
@@ -39,6 +40,7 @@ class FileChunk:
 @dataclass
 class ChunkPlan:
     """Complete chunking plan for a file."""
+
     file_path: str
     needs_chunking: bool
     total_tokens: int
@@ -53,7 +55,7 @@ class ChunkPlan:
 class Chunker:
     """
     Splits large files into processable chunks.
-    
+
     Strategies by file type:
     - Python: split on class/function definitions
     - JS/TS: split on class/function/component definitions
@@ -70,9 +72,9 @@ class Chunker:
             config: CodiLayConfig instance
         """
         self.count_tokens = token_counter
-        self.threshold = getattr(config, 'chunk_token_threshold', 6000)
-        self.max_chunk_tokens = getattr(config, 'max_chunk_tokens', 4000)
-        self.overlap_ratio = getattr(config, 'chunk_overlap_ratio', 0.10)
+        self.threshold = getattr(config, "chunk_token_threshold", 6000)
+        self.max_chunk_tokens = getattr(config, "max_chunk_tokens", 4000)
+        self.overlap_ratio = getattr(config, "chunk_overlap_ratio", 0.10)
 
     def plan(self, file_path: str, content: str) -> ChunkPlan:
         """
@@ -89,18 +91,20 @@ class Chunker:
                 file_path=file_path,
                 needs_chunking=False,
                 total_tokens=total_tokens,
-                chunks=[FileChunk(
-                    chunk_type=ChunkType.FULL,
-                    content=content,
-                    label="full file",
-                    start_line=1,
-                    end_line=content.count('\n') + 1,
-                    token_count=total_tokens,
-                )],
+                chunks=[
+                    FileChunk(
+                        chunk_type=ChunkType.FULL,
+                        content=content,
+                        label="full file",
+                        start_line=1,
+                        end_line=content.count("\n") + 1,
+                        token_count=total_tokens,
+                    )
+                ],
             )
 
         # File needs chunking
-        lines = content.split('\n')
+        lines = content.split("\n")
         ext = os.path.splitext(file_path)[1].lower()
 
         # Step 1: Extract skeleton
@@ -193,7 +197,7 @@ class Chunker:
                                 if self._is_docstring_end(lines[k].strip(), ext):
                                     break
                         break
-                    elif next_stripped.startswith('//') or next_stripped.startswith('#'):
+                    elif next_stripped.startswith("//") or next_stripped.startswith("#"):
                         skeleton_lines.append(lines[j])
                     else:
                         break
@@ -217,7 +221,7 @@ class Chunker:
                 skeleton_lines.append(line)
                 continue
 
-        return '\n'.join(skeleton_lines)
+        return "\n".join(skeleton_lines)
 
     # ── Boundary detection ───────────────────────────────────────
 
@@ -228,25 +232,25 @@ class Chunker:
         """
         boundaries = []
 
-        if ext in ('.py',):
+        if ext in (".py",):
             boundaries = self._find_python_boundaries(lines)
-        elif ext in ('.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'):
+        elif ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
             boundaries = self._find_js_boundaries(lines)
-        elif ext in ('.dart',):
+        elif ext in (".dart",):
             boundaries = self._find_dart_boundaries(lines)
-        elif ext in ('.java', '.kt', '.kts', '.scala'):
+        elif ext in (".java", ".kt", ".kts", ".scala"):
             boundaries = self._find_java_boundaries(lines)
-        elif ext in ('.go',):
+        elif ext in (".go",):
             boundaries = self._find_go_boundaries(lines)
-        elif ext in ('.rs',):
+        elif ext in (".rs",):
             boundaries = self._find_rust_boundaries(lines)
-        elif ext in ('.rb',):
+        elif ext in (".rb",):
             boundaries = self._find_ruby_boundaries(lines)
         else:
             boundaries = self._find_generic_boundaries(lines)
 
         # Filter out very small boundaries (less than 5 lines)
-        boundaries = [b for b in boundaries if b['end_line'] - b['start_line'] >= 5]
+        boundaries = [b for b in boundaries if b["end_line"] - b["start_line"] >= 5]
 
         return boundaries
 
@@ -261,28 +265,26 @@ class Chunker:
 
             # Top-level class or function
             if indent == 0 and (
-                stripped.startswith('class ') or
-                stripped.startswith('def ') or
-                stripped.startswith('async def ')
+                stripped.startswith("class ") or stripped.startswith("def ") or stripped.startswith("async def ")
             ):
                 if current:
-                    current['end_line'] = i
+                    current["end_line"] = i
                     boundaries.append(current)
 
                 # Extract name
-                match = re.match(r'(?:async\s+)?(?:class|def)\s+(\w+)', stripped)
-                name = match.group(1) if match else 'unknown'
-                kind = 'class' if stripped.startswith('class') else 'function'
+                match = re.match(r"(?:async\s+)?(?:class|def)\s+(\w+)", stripped)
+                name = match.group(1) if match else "unknown"
+                kind = "class" if stripped.startswith("class") else "function"
 
                 current = {
-                    'start_line': i,
-                    'end_line': len(lines),
-                    'label': f"{kind} {name}",
-                    'symbols': [name],
+                    "start_line": i,
+                    "end_line": len(lines),
+                    "label": f"{kind} {name}",
+                    "symbols": [name],
                 }
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -294,11 +296,14 @@ class Chunker:
         brace_depth = 0
 
         patterns = [
-            (r'^\s*(?:export\s+)?class\s+(\w+)', 'class'),
-            (r'^\s*(?:export\s+)?(?:default\s+)?function\s+(\w+)', 'function'),
-            (r'^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:\(|function)', 'function'),
-            (r'^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*\(', 'component'),
-            (r'^\s*(?:export\s+)?(?:const|let|var)\s+(\w+):\s*React\.FC', 'component'),
+            (r"^\s*(?:export\s+)?class\s+(\w+)", "class"),
+            (r"^\s*(?:export\s+)?(?:default\s+)?function\s+(\w+)", "function"),
+            (
+                r"^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:\(|function)",
+                "function",
+            ),
+            (r"^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*\(", "component"),
+            (r"^\s*(?:export\s+)?(?:const|let|var)\s+(\w+):\s*React\.FC", "component"),
         ]
 
         for i, line in enumerate(lines):
@@ -308,23 +313,23 @@ class Chunker:
                 match = re.match(pattern, stripped)
                 if match:
                     if current and brace_depth == 0:
-                        current['end_line'] = i
+                        current["end_line"] = i
                         boundaries.append(current)
 
                     name = match.group(1)
                     current = {
-                        'start_line': i,
-                        'end_line': len(lines),
-                        'label': f"{kind} {name}",
-                        'symbols': [name],
+                        "start_line": i,
+                        "end_line": len(lines),
+                        "label": f"{kind} {name}",
+                        "symbols": [name],
                     }
                     break
 
             # Track braces for knowing when a block ends
-            brace_depth += stripped.count('{') - stripped.count('}')
+            brace_depth += stripped.count("{") - stripped.count("}")
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -336,36 +341,34 @@ class Chunker:
 
         for i, line in enumerate(lines):
             stripped = line.strip()
-            match = re.match(r'(?:abstract\s+)?class\s+(\w+)', stripped)
+            match = re.match(r"(?:abstract\s+)?class\s+(\w+)", stripped)
             if match:
                 if current:
-                    current['end_line'] = i
+                    current["end_line"] = i
                     boundaries.append(current)
                 current = {
-                    'start_line': i,
-                    'end_line': len(lines),
-                    'label': f"class {match.group(1)}",
-                    'symbols': [match.group(1)],
+                    "start_line": i,
+                    "end_line": len(lines),
+                    "label": f"class {match.group(1)}",
+                    "symbols": [match.group(1)],
                 }
 
             # Also catch top-level functions
-            if not current or (current and i > current.get('end_line', 0)):
-                func_match = re.match(
-                    r'\w[\w<>\?\s]*\s+(\w+)\s*\(', stripped
-                )
-                if func_match and not stripped.startswith('//'):
+            if not current or (current and i > current.get("end_line", 0)):
+                func_match = re.match(r"\w[\w<>\?\s]*\s+(\w+)\s*\(", stripped)
+                if func_match and not stripped.startswith("//"):
                     if current:
-                        current['end_line'] = i
+                        current["end_line"] = i
                         boundaries.append(current)
                     current = {
-                        'start_line': i,
-                        'end_line': len(lines),
-                        'label': f"function {func_match.group(1)}",
-                        'symbols': [func_match.group(1)],
+                        "start_line": i,
+                        "end_line": len(lines),
+                        "label": f"function {func_match.group(1)}",
+                        "symbols": [func_match.group(1)],
                     }
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -378,23 +381,23 @@ class Chunker:
         for i, line in enumerate(lines):
             stripped = line.strip()
             match = re.match(
-                r'(?:public|private|protected|internal|abstract|final|open|data)?\s*'
-                r'(?:class|interface|enum|object|sealed\s+class)\s+(\w+)',
-                stripped
+                r"(?:public|private|protected|internal|abstract|final|open|data)?\s*"
+                r"(?:class|interface|enum|object|sealed\s+class)\s+(\w+)",
+                stripped,
             )
             if match:
                 if current:
-                    current['end_line'] = i
+                    current["end_line"] = i
                     boundaries.append(current)
                 current = {
-                    'start_line': i,
-                    'end_line': len(lines),
-                    'label': f"class {match.group(1)}",
-                    'symbols': [match.group(1)],
+                    "start_line": i,
+                    "end_line": len(lines),
+                    "label": f"class {match.group(1)}",
+                    "symbols": [match.group(1)],
                 }
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -408,34 +411,34 @@ class Chunker:
             stripped = line.strip()
 
             # Functions
-            func_match = re.match(r'func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\(', stripped)
+            func_match = re.match(r"func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\(", stripped)
             if func_match:
                 if current:
-                    current['end_line'] = i
+                    current["end_line"] = i
                     boundaries.append(current)
                 current = {
-                    'start_line': i,
-                    'end_line': len(lines),
-                    'label': f"func {func_match.group(1)}",
-                    'symbols': [func_match.group(1)],
+                    "start_line": i,
+                    "end_line": len(lines),
+                    "label": f"func {func_match.group(1)}",
+                    "symbols": [func_match.group(1)],
                 }
                 continue
 
             # Type definitions
-            type_match = re.match(r'type\s+(\w+)\s+struct', stripped)
+            type_match = re.match(r"type\s+(\w+)\s+struct", stripped)
             if type_match:
                 if current:
-                    current['end_line'] = i
+                    current["end_line"] = i
                     boundaries.append(current)
                 current = {
-                    'start_line': i,
-                    'end_line': len(lines),
-                    'label': f"type {type_match.group(1)}",
-                    'symbols': [type_match.group(1)],
+                    "start_line": i,
+                    "end_line": len(lines),
+                    "label": f"type {type_match.group(1)}",
+                    "symbols": [type_match.group(1)],
                 }
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -449,28 +452,28 @@ class Chunker:
             stripped = line.strip()
 
             for pattern, kind in [
-                (r'impl(?:<[^>]+>)?\s+(\w+)', 'impl'),
-                (r'pub\s+(?:async\s+)?fn\s+(\w+)', 'fn'),
-                (r'fn\s+(\w+)', 'fn'),
-                (r'(?:pub\s+)?struct\s+(\w+)', 'struct'),
-                (r'(?:pub\s+)?enum\s+(\w+)', 'enum'),
-                (r'(?:pub\s+)?trait\s+(\w+)', 'trait'),
+                (r"impl(?:<[^>]+>)?\s+(\w+)", "impl"),
+                (r"pub\s+(?:async\s+)?fn\s+(\w+)", "fn"),
+                (r"fn\s+(\w+)", "fn"),
+                (r"(?:pub\s+)?struct\s+(\w+)", "struct"),
+                (r"(?:pub\s+)?enum\s+(\w+)", "enum"),
+                (r"(?:pub\s+)?trait\s+(\w+)", "trait"),
             ]:
                 match = re.match(pattern, stripped)
                 if match:
                     if current:
-                        current['end_line'] = i
+                        current["end_line"] = i
                         boundaries.append(current)
                     current = {
-                        'start_line': i,
-                        'end_line': len(lines),
-                        'label': f"{kind} {match.group(1)}",
-                        'symbols': [match.group(1)],
+                        "start_line": i,
+                        "end_line": len(lines),
+                        "label": f"{kind} {match.group(1)}",
+                        "symbols": [match.group(1)],
                     }
                     break
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -485,25 +488,23 @@ class Chunker:
             indent = len(line) - len(line.lstrip()) if stripped else 999
 
             if indent == 0 and (
-                stripped.startswith('class ') or
-                stripped.startswith('module ') or
-                stripped.startswith('def ')
+                stripped.startswith("class ") or stripped.startswith("module ") or stripped.startswith("def ")
             ):
                 if current:
-                    current['end_line'] = i
+                    current["end_line"] = i
                     boundaries.append(current)
 
-                match = re.match(r'(?:class|module|def)\s+(\w+)', stripped)
-                name = match.group(1) if match else 'unknown'
+                match = re.match(r"(?:class|module|def)\s+(\w+)", stripped)
+                name = match.group(1) if match else "unknown"
                 current = {
-                    'start_line': i,
-                    'end_line': len(lines),
-                    'label': f"{stripped.split()[0]} {name}",
-                    'symbols': [name],
+                    "start_line": i,
+                    "end_line": len(lines),
+                    "label": f"{stripped.split()[0]} {name}",
+                    "symbols": [name],
                 }
 
         if current:
-            current['end_line'] = len(lines)
+            current["end_line"] = len(lines)
             boundaries.append(current)
 
         return boundaries
@@ -522,59 +523,63 @@ class Chunker:
                 blank_count += 1
             else:
                 if blank_count >= 2 and i - current_start > 10:
-                    boundaries.append({
-                        'start_line': current_start,
-                        'end_line': i - blank_count,
-                        'label': f"section (lines {current_start+1}-{i-blank_count+1})",
-                        'symbols': [],
-                    })
+                    boundaries.append(
+                        {
+                            "start_line": current_start,
+                            "end_line": i - blank_count,
+                            "label": f"section (lines {current_start + 1}-{i - blank_count + 1})",
+                            "symbols": [],
+                        }
+                    )
                     current_start = i
                 blank_count = 0
 
         # Last section
         if current_start < len(lines):
-            boundaries.append({
-                'start_line': current_start,
-                'end_line': len(lines),
-                'label': f"section (lines {current_start+1}-{len(lines)})",
-                'symbols': [],
-            })
+            boundaries.append(
+                {
+                    "start_line": current_start,
+                    "end_line": len(lines),
+                    "label": f"section (lines {current_start + 1}-{len(lines)})",
+                    "symbols": [],
+                }
+            )
 
         return boundaries
 
     # ── Splitting ────────────────────────────────────────────────
 
-    def _split_on_boundaries(
-        self, lines: List[str], boundaries: List[Dict]
-    ) -> List[FileChunk]:
+    def _split_on_boundaries(self, lines: List[str], boundaries: List[Dict]) -> List[FileChunk]:
         """Create chunks from detected structural boundaries."""
         chunks = []
 
         # Capture everything before the first boundary as a preamble
-        if boundaries and boundaries[0]['start_line'] > 0:
-            preamble = '\n'.join(lines[:boundaries[0]['start_line']])
+        if boundaries and boundaries[0]["start_line"] > 0:
+            preamble = "\n".join(lines[: boundaries[0]["start_line"]])
             if preamble.strip():
-                chunks.append(FileChunk(
-                    chunk_type=ChunkType.DETAIL,
-                    content=preamble,
-                    label="preamble (imports, constants)",
-                    start_line=0,
-                    end_line=boundaries[0]['start_line'],
-                    symbols=[],
-                ))
+                chunks.append(
+                    FileChunk(
+                        chunk_type=ChunkType.DETAIL,
+                        content=preamble,
+                        label="preamble (imports, constants)",
+                        start_line=0,
+                        end_line=boundaries[0]["start_line"],
+                        symbols=[],
+                    )
+                )
 
         for boundary in boundaries:
-            content = '\n'.join(
-                lines[boundary['start_line']:boundary['end_line']]
+            content = "\n".join(lines[boundary["start_line"] : boundary["end_line"]])
+            chunks.append(
+                FileChunk(
+                    chunk_type=ChunkType.DETAIL,
+                    content=content,
+                    label=boundary["label"],
+                    start_line=boundary["start_line"],
+                    end_line=boundary["end_line"],
+                    symbols=boundary.get("symbols", []),
+                )
             )
-            chunks.append(FileChunk(
-                chunk_type=ChunkType.DETAIL,
-                content=content,
-                label=boundary['label'],
-                start_line=boundary['start_line'],
-                end_line=boundary['end_line'],
-                symbols=boundary.get('symbols', []),
-            ))
 
         return chunks
 
@@ -603,38 +608,40 @@ class Chunker:
                         break
 
                 chunk_num += 1
-                content = '\n'.join(current_lines[:break_at])
-                chunks.append(FileChunk(
-                    chunk_type=ChunkType.DETAIL,
-                    content=content,
-                    label=f"chunk {chunk_num} (lines {current_start+1}-{current_start+break_at})",
-                    start_line=current_start,
-                    end_line=current_start + break_at,
-                ))
+                content = "\n".join(current_lines[:break_at])
+                chunks.append(
+                    FileChunk(
+                        chunk_type=ChunkType.DETAIL,
+                        content=content,
+                        label=f"chunk {chunk_num} (lines {current_start + 1}-{current_start + break_at})",
+                        start_line=current_start,
+                        end_line=current_start + break_at,
+                    )
+                )
 
                 # Carry over remaining lines
                 remaining = current_lines[break_at:]
                 current_lines = remaining
                 current_start = current_start + break_at
-                current_tokens = self.count_tokens('\n'.join(remaining))
+                current_tokens = self.count_tokens("\n".join(remaining))
 
         # Last chunk
         if current_lines:
             chunk_num += 1
-            content = '\n'.join(current_lines)
-            chunks.append(FileChunk(
-                chunk_type=ChunkType.DETAIL,
-                content=content,
-                label=f"chunk {chunk_num} (lines {current_start+1}-{current_start+len(current_lines)})",
-                start_line=current_start,
-                end_line=current_start + len(current_lines),
-            ))
+            content = "\n".join(current_lines)
+            chunks.append(
+                FileChunk(
+                    chunk_type=ChunkType.DETAIL,
+                    content=content,
+                    label=f"chunk {chunk_num} (lines {current_start + 1}-{current_start + len(current_lines)})",
+                    start_line=current_start,
+                    end_line=current_start + len(current_lines),
+                )
+            )
 
         return chunks
 
-    def _add_overlap(
-        self, chunks: List[FileChunk], lines: List[str]
-    ) -> List[FileChunk]:
+    def _add_overlap(self, chunks: List[FileChunk], lines: List[str]) -> List[FileChunk]:
         """Add overlap between consecutive chunks for context continuity."""
         if len(chunks) <= 1:
             return chunks
@@ -644,13 +651,13 @@ class Chunker:
             curr_chunk = chunks[i]
 
             # Calculate overlap size (10% of previous chunk's lines)
-            prev_lines = prev_chunk.content.split('\n')
+            prev_lines = prev_chunk.content.split("\n")
             overlap_lines = max(5, int(len(prev_lines) * self.overlap_ratio))
             overlap_lines = min(overlap_lines, 30)  # Cap at 30 lines
 
             # Take last N lines from previous chunk
             overlap_content = prev_lines[-overlap_lines:]
-            overlap_text = '\n'.join(overlap_content)
+            overlap_text = "\n".join(overlap_content)
 
             # Prepend to current chunk with a marker
             curr_chunk.content = (
@@ -665,12 +672,12 @@ class Chunker:
 
     def _sub_split_chunk(self, chunk: FileChunk) -> List[FileChunk]:
         """Split an oversized chunk into smaller pieces."""
-        lines = chunk.content.split('\n')
+        lines = chunk.content.split("\n")
         sub_chunks = self._split_by_tokens(lines)
 
         # Relabel
         for i, sc in enumerate(sub_chunks):
-            sc.label = f"{chunk.label} (part {i+1}/{len(sub_chunks)})"
+            sc.label = f"{chunk.label} (part {i + 1}/{len(sub_chunks)})"
             sc.start_line += chunk.start_line
             sc.end_line += chunk.start_line
 
@@ -679,133 +686,129 @@ class Chunker:
     # ── Helper methods ───────────────────────────────────────────
 
     def _is_import_line(self, line: str, ext: str) -> bool:
-        if ext in ('.py',):
-            return line.startswith('import ') or line.startswith('from ')
-        elif ext in ('.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'):
-            return (
-                line.startswith('import ') or
-                'require(' in line or
-                line.startswith('const ') and 'require(' in line
-            )
-        elif ext in ('.dart',):
-            return line.startswith('import ') or line.startswith("import '")
-        elif ext in ('.java', '.kt', '.kts', '.scala'):
-            return line.startswith('import ') or line.startswith('package ')
-        elif ext in ('.go',):
-            return line.startswith('import ') or line == 'import ('
-        elif ext in ('.rs',):
-            return line.startswith('use ') or line.startswith('extern crate')
-        elif ext in ('.rb',):
-            return line.startswith('require ') or line.startswith("require '")
+        if ext in (".py",):
+            return line.startswith("import ") or line.startswith("from ")
+        elif ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
+            return line.startswith("import ") or "require(" in line or line.startswith("const ") and "require(" in line
+        elif ext in (".dart",):
+            return line.startswith("import ") or line.startswith("import '")
+        elif ext in (".java", ".kt", ".kts", ".scala"):
+            return line.startswith("import ") or line.startswith("package ")
+        elif ext in (".go",):
+            return line.startswith("import ") or line == "import ("
+        elif ext in (".rs",):
+            return line.startswith("use ") or line.startswith("extern crate")
+        elif ext in (".rb",):
+            return line.startswith("require ") or line.startswith("require '")
         return False
 
     def _is_signature(self, line: str, ext: str) -> bool:
-        if ext in ('.py',):
-            return (
-                line.startswith('def ') or
-                line.startswith('async def ') or
-                line.startswith('class ')
+        if ext in (".py",):
+            return line.startswith("def ") or line.startswith("async def ") or line.startswith("class ")
+        elif ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
+            return bool(
+                re.match(
+                    r"(?:export\s+)?(?:default\s+)?"
+                    r"(?:async\s+)?(?:function\*?\s+\w+|class\s+\w+)",
+                    line,
+                )
+            ) or bool(re.match(r"(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?\(", line))
+        elif ext in (".dart",):
+            return bool(re.match(r"(?:abstract\s+)?class\s+\w+", line)) or bool(
+                re.match(
+                    r"(?:static\s+)?(?:Future|Stream|void|int|String|bool|double|List|Map|Set|dynamic|\w+)\s*<?\w*>?\s+\w+\s*\(",
+                    line,
+                )
             )
-        elif ext in ('.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'):
-            return bool(re.match(
-                r'(?:export\s+)?(?:default\s+)?'
-                r'(?:async\s+)?(?:function\*?\s+\w+|class\s+\w+)',
-                line
-            )) or bool(re.match(
-                r'(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?\(',
-                line
-            ))
-        elif ext in ('.dart',):
-            return bool(re.match(
-                r'(?:abstract\s+)?class\s+\w+', line
-            )) or bool(re.match(
-                r'(?:static\s+)?(?:Future|Stream|void|int|String|bool|double|List|Map|Set|dynamic|\w+)\s*<?\w*>?\s+\w+\s*\(',
-                line
-            ))
-        elif ext in ('.java', '.kt', '.kts'):
-            return bool(re.match(
-                r'(?:public|private|protected|internal|abstract|static|final|open|override|suspend)?\s*'
-                r'(?:class|interface|enum|fun|object|sealed\s+class)\s+\w+',
-                line
-            ))
-        elif ext in ('.go',):
-            return line.startswith('func ') or line.startswith('type ')
-        elif ext in ('.rs',):
-            return bool(re.match(
-                r'(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|type)\s+',
-                line
-            ))
-        elif ext in ('.rb',):
-            return (
-                line.startswith('def ') or
-                line.startswith('class ') or
-                line.startswith('module ')
+        elif ext in (".java", ".kt", ".kts"):
+            return bool(
+                re.match(
+                    r"(?:public|private|protected|internal|abstract|static|final|open|override|suspend)?\s*"
+                    r"(?:class|interface|enum|fun|object|sealed\s+class)\s+\w+",
+                    line,
+                )
             )
+        elif ext in (".go",):
+            return line.startswith("func ") or line.startswith("type ")
+        elif ext in (".rs",):
+            return bool(
+                re.match(
+                    r"(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|type)\s+",
+                    line,
+                )
+            )
+        elif ext in (".rb",):
+            return line.startswith("def ") or line.startswith("class ") or line.startswith("module ")
         return False
 
     def _is_comment(self, line: str, ext: str) -> bool:
-        if ext in ('.py', '.rb'):
-            return line.startswith('#')
-        elif ext in ('.js', '.jsx', '.ts', '.tsx', '.dart', '.java', '.kt',
-                     '.go', '.rs', '.scala', '.swift'):
-            return line.startswith('//') or line.startswith('/*') or line.startswith('*')
+        if ext in (".py", ".rb"):
+            return line.startswith("#")
+        elif ext in (
+            ".js",
+            ".jsx",
+            ".ts",
+            ".tsx",
+            ".dart",
+            ".java",
+            ".kt",
+            ".go",
+            ".rs",
+            ".scala",
+            ".swift",
+        ):
+            return line.startswith("//") or line.startswith("/*") or line.startswith("*")
         return False
 
     def _is_docstring_start(self, line: str, ext: str) -> bool:
-        if ext in ('.py',):
+        if ext in (".py",):
             return line.startswith('"""') or line.startswith("'''")
-        elif ext in ('.js', '.jsx', '.ts', '.tsx', '.java', '.kt', '.dart'):
-            return line.startswith('/**') or line.startswith('///')
+        elif ext in (".js", ".jsx", ".ts", ".tsx", ".java", ".kt", ".dart"):
+            return line.startswith("/**") or line.startswith("///")
         return False
 
     def _is_docstring_end(self, line: str, ext: str) -> bool:
-        if ext in ('.py',):
+        if ext in (".py",):
             return line.endswith('"""') or line.endswith("'''")
-        elif ext in ('.js', '.jsx', '.ts', '.tsx', '.java', '.kt', '.dart'):
-            return line.endswith('*/') or (line.startswith('///') and not line.endswith('///'))
+        elif ext in (".js", ".jsx", ".ts", ".tsx", ".java", ".kt", ".dart"):
+            return line.endswith("*/") or (line.startswith("///") and not line.endswith("///"))
         return True
 
     def _is_decorator(self, line: str, ext: str) -> bool:
-        if ext in ('.py',):
-            return line.startswith('@')
-        elif ext in ('.java', '.kt', '.kts'):
-            return line.startswith('@')
-        elif ext in ('.ts', '.tsx'):
-            return line.startswith('@')
-        elif ext in ('.dart',):
-            return line.startswith('@')
+        if ext in (".py",):
+            return line.startswith("@")
+        elif ext in (".java", ".kt", ".kts"):
+            return line.startswith("@")
+        elif ext in (".ts", ".tsx"):
+            return line.startswith("@")
+        elif ext in (".dart",):
+            return line.startswith("@")
         return False
 
     def _is_export(self, line: str, ext: str) -> bool:
-        if ext in ('.js', '.jsx', '.ts', '.tsx', '.mjs'):
-            return (
-                line.startswith('export ') or
-                line.startswith('module.exports') or
-                line.startswith('exports.')
-            )
-        elif ext in ('.dart',):
-            return line.startswith('export ')
-        elif ext in ('.go',):
+        if ext in (".js", ".jsx", ".ts", ".tsx", ".mjs"):
+            return line.startswith("export ") or line.startswith("module.exports") or line.startswith("exports.")
+        elif ext in (".dart",):
+            return line.startswith("export ")
+        elif ext in (".go",):
             # In Go, exported = starts with uppercase
             return False  # Handled differently
         return False
 
     def _is_type_or_const(self, line: str, ext: str) -> bool:
-        if ext in ('.ts', '.tsx'):
-            return bool(re.match(
-                r'(?:export\s+)?(?:type|interface|enum|const)\s+\w+', line
-            ))
-        elif ext in ('.py',):
-            return bool(re.match(r'^[A-Z_][A-Z_0-9]*\s*[:=]', line))
-        elif ext in ('.go',):
-            return bool(re.match(r'(?:const|var)\s+', line))
-        elif ext in ('.rs',):
-            return bool(re.match(r'(?:pub\s+)?(?:const|static)\s+', line))
+        if ext in (".ts", ".tsx"):
+            return bool(re.match(r"(?:export\s+)?(?:type|interface|enum|const)\s+\w+", line))
+        elif ext in (".py",):
+            return bool(re.match(r"^[A-Z_][A-Z_0-9]*\s*[:=]", line))
+        elif ext in (".go",):
+            return bool(re.match(r"(?:const|var)\s+", line))
+        elif ext in (".rs",):
+            return bool(re.match(r"(?:pub\s+)?(?:const|static)\s+", line))
         return False
 
     def _count_body_lines(self, lines: List[str], signature_line: int, ext: str) -> int:
         """Count lines in the body of a function/class starting from signature."""
-        if ext in ('.py', '.rb'):
+        if ext in (".py", ".rb"):
             # Count by indentation
             if signature_line + 1 >= len(lines):
                 return 0
@@ -826,8 +829,8 @@ class Chunker:
             count = 0
             for i in range(signature_line, len(lines)):
                 line = lines[i]
-                brace_depth += line.count('{') - line.count('}')
-                if '{' in line:
+                brace_depth += line.count("{") - line.count("}")
+                if "{" in line:
                     started = True
                 if started:
                     count += 1

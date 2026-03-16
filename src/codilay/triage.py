@@ -7,10 +7,10 @@ Two modes:
           ~500-1000 tokens total. Pays for itself 100x over.
 """
 
-import os
 import fnmatch
-from typing import Dict, List, Set, Any
+import os
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Set
 
 
 class FileCategory:
@@ -22,6 +22,7 @@ class FileCategory:
 @dataclass
 class TriageResult:
     """Result of the triage phase."""
+
     core: List[str] = field(default_factory=list)
     skim: List[str] = field(default_factory=list)
     skip: List[str] = field(default_factory=list)
@@ -75,36 +76,82 @@ class TriageResult:
 # ── Static patterns (used by fast mode AND as safety net) ────────────────────
 
 ALWAYS_SKIP_DIRS: Set[str] = {
-    ".git", "node_modules", "__pycache__", ".dart_tool",
-    ".gradle", ".idea", ".vscode", ".vs",
-    "build", "dist", "out", ".next", "target",
-    "coverage", ".nyc_output", ".cache", ".tmp",
-    "Pods", ".symlinks",
+    ".git",
+    "node_modules",
+    "__pycache__",
+    ".dart_tool",
+    ".gradle",
+    ".idea",
+    ".vscode",
+    ".vs",
+    "build",
+    "dist",
+    "out",
+    ".next",
+    "target",
+    "coverage",
+    ".nyc_output",
+    ".cache",
+    ".tmp",
+    "Pods",
+    ".symlinks",
 }
 
 ALWAYS_SKIP_EXTENSIONS: Set[str] = {
-    ".min.js", ".min.css", ".map",
-    ".pyc", ".pyo", ".class",
-    ".g.dart", ".freezed.dart",
+    ".min.js",
+    ".min.css",
+    ".map",
+    ".pyc",
+    ".pyo",
+    ".class",
+    ".g.dart",
+    ".freezed.dart",
     ".lock",
 }
 
 ALWAYS_SKIM_FILES: Set[str] = {
-    "package.json", "pubspec.yaml", "pyproject.toml",
-    "Cargo.toml", "go.mod", "build.gradle", "build.gradle.kts",
-    "pom.xml", "Gemfile", "composer.json", "setup.py", "setup.cfg",
-    "requirements.txt", "Pipfile",
-    "tsconfig.json", "webpack.config.js", "vite.config.js",
-    "vite.config.ts", "babel.config.js", "rollup.config.js",
-    "jest.config.js", "jest.config.ts",
-    "tailwind.config.js", "tailwind.config.ts", "postcss.config.js",
-    "next.config.js", "next.config.mjs", "nuxt.config.ts",
-    "angular.json", "analysis_options.yaml",
-    "docker-compose.yml", "docker-compose.yaml",
-    "Dockerfile", "Makefile", "CMakeLists.txt",
-    ".env.example", "Procfile",
-    ".gitignore", ".dockerignore", ".editorconfig",
-    "LICENSE", "LICENCE",
+    "package.json",
+    "pubspec.yaml",
+    "pyproject.toml",
+    "Cargo.toml",
+    "go.mod",
+    "build.gradle",
+    "build.gradle.kts",
+    "pom.xml",
+    "Gemfile",
+    "composer.json",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+    "Pipfile",
+    "tsconfig.json",
+    "webpack.config.js",
+    "vite.config.js",
+    "vite.config.ts",
+    "babel.config.js",
+    "rollup.config.js",
+    "jest.config.js",
+    "jest.config.ts",
+    "tailwind.config.js",
+    "tailwind.config.ts",
+    "postcss.config.js",
+    "next.config.js",
+    "next.config.mjs",
+    "nuxt.config.ts",
+    "angular.json",
+    "analysis_options.yaml",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "Dockerfile",
+    "Makefile",
+    "CMakeLists.txt",
+    ".env.example",
+    "Procfile",
+    ".gitignore",
+    ".dockerignore",
+    ".editorconfig",
+    "LICENSE",
+    "LICENCE",
 }
 
 
@@ -149,9 +196,7 @@ class Triage:
             result.core.append(file_path)
 
         result.project_type = self._detect_project_type(all_files)
-        result.reasoning = (
-            f"Pattern-based classification for {result.project_type} project"
-        )
+        result.reasoning = f"Pattern-based classification for {result.project_type} project"
         return result
 
     # ── Smart mode: AI decides ───────────────────────────────────
@@ -170,7 +215,7 @@ class Triage:
         if self.llm is None:
             return self.fast_triage(all_files)
 
-        from codilay.prompts import triage_prompt, system_prompt
+        from codilay.prompts import system_prompt, triage_prompt
 
         sys_prompt = system_prompt(self.config)
         user_prompt = triage_prompt(
@@ -194,9 +239,7 @@ class Triage:
 
         return result
 
-    def _parse_response(
-        self, response: Dict[str, Any], all_files: List[str]
-    ) -> TriageResult:
+    def _parse_response(self, response: Dict[str, Any], all_files: List[str]) -> TriageResult:
         """Parse the LLM triage response into a TriageResult."""
         result = TriageResult()
         all_files_set = set(all_files)
@@ -249,9 +292,7 @@ class Triage:
 
         return result
 
-    def _expand_patterns(
-        self, patterns: List[str], all_files: List[str]
-    ) -> List[str]:
+    def _expand_patterns(self, patterns: List[str], all_files: List[str]) -> List[str]:
         """Expand a list of patterns/paths/directories to actual file paths."""
         expanded = []
 
@@ -276,36 +317,25 @@ class Triage:
                 continue
 
             # Also try without trailing slash
-            bare_dir_matches = [
-                f for f in all_files
-                if f.startswith(pattern.rstrip("/") + "/")
-            ]
+            bare_dir_matches = [f for f in all_files if f.startswith(pattern.rstrip("/") + "/")]
             if bare_dir_matches:
                 expanded.extend(bare_dir_matches)
                 continue
 
             # Glob pattern
             if "*" in pattern or "?" in pattern:
-                glob_matches = [
-                    f for f in all_files if fnmatch.fnmatch(f, pattern)
-                ]
+                glob_matches = [f for f in all_files if fnmatch.fnmatch(f, pattern)]
                 expanded.extend(glob_matches)
                 continue
 
             # Basename match — "AppDelegate.swift" matches "ios/Runner/AppDelegate.swift"
-            basename_matches = [
-                f for f in all_files
-                if os.path.basename(f) == pattern
-            ]
+            basename_matches = [f for f in all_files if os.path.basename(f) == pattern]
             if basename_matches:
                 expanded.extend(basename_matches)
                 continue
 
             # Substring match as last resort — "services/" matches "lib/services/"
-            sub_matches = [
-                f for f in all_files
-                if pattern.rstrip("/") in f
-            ]
+            sub_matches = [f for f in all_files if pattern.rstrip("/") in f]
             if sub_matches:
                 expanded.extend(sub_matches)
 
@@ -339,43 +369,55 @@ class Triage:
         file_set = set(all_files)
 
         checks = [
-            ("flutter", lambda: "pubspec.yaml" in file_set and any(
-                f.endswith(".dart") for f in all_files
-            )),
-            ("react_native", lambda: "app.json" in file_set and any(
-                f.startswith("android/") for f in all_files
-            ) and any(f.endswith((".jsx", ".tsx")) for f in all_files)),
-            ("nextjs", lambda: any(
-                f in file_set for f in [
-                    "next.config.js", "next.config.mjs", "next.config.ts"
-                ]
-            )),
-            ("nuxt", lambda: any(
-                f in file_set for f in ["nuxt.config.ts", "nuxt.config.js"]
-            )),
+            (
+                "flutter",
+                lambda: "pubspec.yaml" in file_set and any(f.endswith(".dart") for f in all_files),
+            ),
+            (
+                "react_native",
+                lambda: (
+                    "app.json" in file_set
+                    and any(f.startswith("android/") for f in all_files)
+                    and any(f.endswith((".jsx", ".tsx")) for f in all_files)
+                ),
+            ),
+            (
+                "nextjs",
+                lambda: any(f in file_set for f in ["next.config.js", "next.config.mjs", "next.config.ts"]),
+            ),
+            (
+                "nuxt",
+                lambda: any(f in file_set for f in ["nuxt.config.ts", "nuxt.config.js"]),
+            ),
             ("angular", lambda: "angular.json" in file_set),
             ("vue", lambda: any(f.endswith(".vue") for f in all_files)),
             ("django", lambda: "manage.py" in file_set),
-            ("rails", lambda: "Gemfile" in file_set and any(
-                f.startswith("config/routes") for f in all_files
-            )),
-            ("spring", lambda: any(
-                f.endswith(".java") for f in all_files
-            ) and ("pom.xml" in file_set or "build.gradle" in file_set)),
-            ("dotnet", lambda: any(
-                f.endswith((".csproj", ".sln")) for f in all_files
-            )),
+            (
+                "rails",
+                lambda: "Gemfile" in file_set and any(f.startswith("config/routes") for f in all_files),
+            ),
+            (
+                "spring",
+                lambda: (
+                    any(f.endswith(".java") for f in all_files)
+                    and ("pom.xml" in file_set or "build.gradle" in file_set)
+                ),
+            ),
+            ("dotnet", lambda: any(f.endswith((".csproj", ".sln")) for f in all_files)),
             ("rust", lambda: "Cargo.toml" in file_set),
             ("go", lambda: "go.mod" in file_set),
-            ("fastapi", lambda: any(
-                f.endswith(".py") for f in all_files
-            ) and "requirements.txt" in file_set),
-            ("express", lambda: "package.json" in file_set and any(
-                f.endswith((".js", ".ts")) for f in all_files
-            )),
-            ("react", lambda: "package.json" in file_set and any(
-                f.endswith((".jsx", ".tsx")) for f in all_files
-            )),
+            (
+                "fastapi",
+                lambda: any(f.endswith(".py") for f in all_files) and "requirements.txt" in file_set,
+            ),
+            (
+                "express",
+                lambda: "package.json" in file_set and any(f.endswith((".js", ".ts")) for f in all_files),
+            ),
+            (
+                "react",
+                lambda: "package.json" in file_set and any(f.endswith((".jsx", ".tsx")) for f in all_files),
+            ),
         ]
 
         for name, check in checks:

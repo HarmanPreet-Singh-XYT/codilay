@@ -1,9 +1,9 @@
 """File scanner — walks the codebase, respects .gitignore and config ignores."""
 
+import hashlib
 import os
 import subprocess
-import hashlib
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import pathspec
 
@@ -12,44 +12,143 @@ class Scanner:
     """Scans a codebase directory, respecting ignore rules."""
 
     TEXT_EXTENSIONS = {
-        ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs",
-        ".java", ".kt", ".kts", ".scala",
-        ".go", ".rs", ".rb", ".php",
-        ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx",
-        ".cs", ".fs", ".vb",
-        ".swift", ".m", ".mm",
-        ".lua", ".r", ".R", ".jl",
-        ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd",
-        ".sql", ".graphql", ".gql",
-        ".html", ".htm", ".css", ".scss", ".sass", ".less",
-        ".xml", ".xsl", ".xslt", ".svg",
-        ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-        ".env", ".env.example", ".env.local",
-        ".md", ".markdown", ".rst", ".txt", ".adoc",
-        ".dockerfile", ".containerfile",
-        ".tf", ".hcl",
-        ".proto", ".thrift", ".avsc",
-        ".vue", ".svelte", ".astro",
-        ".ex", ".exs", ".erl", ".hrl",
-        ".hs", ".lhs", ".elm", ".purs",
-        ".clj", ".cljs", ".cljc", ".edn",
-        ".ml", ".mli", ".re", ".rei",
-        ".dart", ".nim", ".zig", ".v",
-        ".rake", ".gemspec",
-        ".gradle", ".sbt",
-        ".cmake", ".make", ".mk",
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".mjs",
+        ".cjs",
+        ".java",
+        ".kt",
+        ".kts",
+        ".scala",
+        ".go",
+        ".rs",
+        ".rb",
+        ".php",
+        ".c",
+        ".h",
+        ".cpp",
+        ".hpp",
+        ".cc",
+        ".cxx",
+        ".cs",
+        ".fs",
+        ".vb",
+        ".swift",
+        ".m",
+        ".mm",
+        ".lua",
+        ".r",
+        ".R",
+        ".jl",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".fish",
+        ".ps1",
+        ".bat",
+        ".cmd",
+        ".sql",
+        ".graphql",
+        ".gql",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        ".xml",
+        ".xsl",
+        ".xslt",
+        ".svg",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".env.example",
+        ".env.local",
+        ".md",
+        ".markdown",
+        ".rst",
+        ".txt",
+        ".adoc",
+        ".dockerfile",
+        ".containerfile",
+        ".tf",
+        ".hcl",
+        ".proto",
+        ".thrift",
+        ".avsc",
+        ".vue",
+        ".svelte",
+        ".astro",
+        ".ex",
+        ".exs",
+        ".erl",
+        ".hrl",
+        ".hs",
+        ".lhs",
+        ".elm",
+        ".purs",
+        ".clj",
+        ".cljs",
+        ".cljc",
+        ".edn",
+        ".ml",
+        ".mli",
+        ".re",
+        ".rei",
+        ".dart",
+        ".nim",
+        ".zig",
+        ".v",
+        ".rake",
+        ".gemspec",
+        ".gradle",
+        ".sbt",
+        ".cmake",
+        ".make",
+        ".mk",
     }
 
     TEXT_FILENAMES = {
-        "Makefile", "Dockerfile", "Containerfile", "Vagrantfile",
-        "Rakefile", "Gemfile", "Procfile", "Brewfile",
-        ".gitignore", ".gitattributes", ".editorconfig",
-        ".eslintrc", ".prettierrc", ".babelrc",
-        ".dockerignore", ".npmignore", ".slugignore",
-        "LICENSE", "LICENCE", "README", "CHANGELOG", "CONTRIBUTING",
-        "requirements.txt", "setup.py", "setup.cfg", "pyproject.toml",
-        "package.json", "tsconfig.json", "webpack.config.js",
-        "docker-compose.yml", "docker-compose.yaml",
+        "Makefile",
+        "Dockerfile",
+        "Containerfile",
+        "Vagrantfile",
+        "Rakefile",
+        "Gemfile",
+        "Procfile",
+        "Brewfile",
+        ".gitignore",
+        ".gitattributes",
+        ".editorconfig",
+        ".eslintrc",
+        ".prettierrc",
+        ".babelrc",
+        ".dockerignore",
+        ".npmignore",
+        ".slugignore",
+        "LICENSE",
+        "LICENCE",
+        "README",
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "requirements.txt",
+        "setup.py",
+        "setup.cfg",
+        "pyproject.toml",
+        "package.json",
+        "tsconfig.json",
+        "webpack.config.js",
+        "docker-compose.yml",
+        "docker-compose.yaml",
     }
 
     def __init__(self, target_path: str, config):
@@ -59,15 +158,23 @@ class Scanner:
 
     def _build_ignore_spec(self):
         patterns = [
-            ".git/", ".git/**",
-            "node_modules/", "node_modules/**",
-            "__pycache__/", "__pycache__/**",
+            ".git/",
+            ".git/**",
+            "node_modules/",
+            "node_modules/**",
+            "__pycache__/",
+            "__pycache__/**",
             ".codilay_state.json",
-            "output/", "output/**",
-            ".venv/", ".venv/**",
-            "venv/", "venv/**",
-            ".env/", ".env/**",
-            "env/", "env/**",
+            "output/",
+            "output/**",
+            ".venv/",
+            ".venv/**",
+            "venv/",
+            "venv/**",
+            ".env/",
+            ".env/**",
+            "env/",
+            "env/**",
         ]
 
         gitignore_path = os.path.join(self.target_path, ".gitignore")
@@ -112,10 +219,7 @@ class Scanner:
                 rel_root = ""
 
             dirs[:] = [
-                d for d in dirs
-                if not self._is_ignored(
-                    os.path.join(rel_root, d) + "/" if rel_root else d + "/"
-                )
+                d for d in dirs if not self._is_ignored(os.path.join(rel_root, d) + "/" if rel_root else d + "/")
             ]
 
             for fname in sorted(filenames):
@@ -143,12 +247,16 @@ class Scanner:
         try:
             result = subprocess.run(
                 [
-                    "tree", "-I",
+                    "tree",
+                    "-I",
                     "node_modules|.git|__pycache__|output|venv|.venv",
-                    "--charset=ascii", "-f",
+                    "--charset=ascii",
+                    "-f",
                 ],
                 cwd=self.target_path,
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
@@ -210,33 +318,31 @@ class Scanner:
             result = subprocess.run(
                 ["git", "diff", "--name-only", "HEAD"],
                 cwd=self.target_path,
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0:
-                git_changed = (
-                    set(result.stdout.strip().split("\n"))
-                    if result.stdout.strip()
-                    else set()
-                )
+                git_changed = set(result.stdout.strip().split("\n")) if result.stdout.strip() else set()
                 result2 = subprocess.run(
                     ["git", "ls-files", "--others", "--exclude-standard"],
                     cwd=self.target_path,
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 if result2.returncode == 0 and result2.stdout.strip():
                     git_changed.update(result2.stdout.strip().split("\n"))
 
                 all_files = set(self.get_all_files())
-                return [
-                    f for f in all_files
-                    if f in git_changed or f not in previously_processed
-                ]
+                return [f for f in all_files if f in git_changed or f not in previously_processed]
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass
 
         all_files = self.get_all_files()
         processed_set = set(previously_processed)
         return [f for f in all_files if f not in processed_set]
+
     def get_file_hash(self, filepath: str) -> Optional[str]:
         """Get a hash of a file's contents for change detection fallback."""
         try:

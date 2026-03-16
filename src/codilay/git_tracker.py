@@ -3,8 +3,8 @@
 import os
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
 from enum import Enum
+from typing import Dict, List, Optional
 
 
 class ChangeType(str, Enum):
@@ -18,6 +18,7 @@ class ChangeType(str, Enum):
 @dataclass
 class FileChange:
     """Represents a single file change detected by git."""
+
     change_type: ChangeType
     path: str
     old_path: Optional[str] = None  # only for renames
@@ -32,6 +33,7 @@ class FileChange:
 @dataclass
 class GitDiffResult:
     """Complete result of a git diff analysis."""
+
     base_commit: str
     head_commit: str
     commits_behind: int
@@ -67,10 +69,7 @@ class GitDiffResult:
     @property
     def files_to_process(self) -> List[str]:
         """Files that need re-processing (excludes deleted)."""
-        return [
-            c.path for c in self.changes
-            if c.change_type != ChangeType.DELETED
-        ]
+        return [c.path for c in self.changes if c.change_type != ChangeType.DELETED]
 
     @property
     def summary_lines(self) -> List[str]:
@@ -147,9 +146,7 @@ class GitTracker:
 
     def get_commit_messages_between(self, base: str, head: str = "HEAD") -> List[str]:
         """Get commit messages between two refs."""
-        output = self._run_git(
-            "log", "--oneline", "--no-decorate", f"{base}..{head}"
-        )
+        output = self._run_git("log", "--oneline", "--no-decorate", f"{base}..{head}")
         if not output:
             return []
         return output.strip().split("\n")
@@ -173,9 +170,7 @@ class GitTracker:
         commit_messages = self.get_commit_messages_between(base_commit, head)
 
         # Get changes with rename and copy detection
-        output = self._run_git(
-            "diff", "--name-status", "-M", "-C", base_commit, head
-        )
+        output = self._run_git("diff", "--name-status", "-M", "-C", base_commit, head)
 
         if output is None:
             return None
@@ -209,18 +204,18 @@ class GitTracker:
                     changes.append(c)
 
         # Untracked files
-        untracked_output = self._run_git(
-            "ls-files", "--others", "--exclude-standard"
-        )
+        untracked_output = self._run_git("ls-files", "--others", "--exclude-standard")
         if untracked_output:
             existing_paths = {c.path for c in changes}
             for line in untracked_output.split("\n"):
                 line = line.strip()
                 if line and line not in existing_paths:
-                    changes.append(FileChange(
-                        change_type=ChangeType.ADDED,
-                        path=line,
-                    ))
+                    changes.append(
+                        FileChange(
+                            change_type=ChangeType.ADDED,
+                            path=line,
+                        )
+                    )
 
         return changes
 
@@ -273,22 +268,28 @@ class GitTracker:
             status = parts[0].strip()
 
             if status == "A":
-                changes.append(FileChange(
-                    change_type=ChangeType.ADDED,
-                    path=parts[1],
-                ))
+                changes.append(
+                    FileChange(
+                        change_type=ChangeType.ADDED,
+                        path=parts[1],
+                    )
+                )
 
             elif status == "M":
-                changes.append(FileChange(
-                    change_type=ChangeType.MODIFIED,
-                    path=parts[1],
-                ))
+                changes.append(
+                    FileChange(
+                        change_type=ChangeType.MODIFIED,
+                        path=parts[1],
+                    )
+                )
 
             elif status == "D":
-                changes.append(FileChange(
-                    change_type=ChangeType.DELETED,
-                    path=parts[1],
-                ))
+                changes.append(
+                    FileChange(
+                        change_type=ChangeType.DELETED,
+                        path=parts[1],
+                    )
+                )
 
             elif status.startswith("R"):
                 # R100, R095, etc. — rename with similarity score
@@ -300,12 +301,14 @@ class GitTracker:
                         pass
 
                 if len(parts) >= 3:
-                    changes.append(FileChange(
-                        change_type=ChangeType.RENAMED,
-                        path=parts[2],        # new path
-                        old_path=parts[1],    # old path
-                        similarity=similarity,
-                    ))
+                    changes.append(
+                        FileChange(
+                            change_type=ChangeType.RENAMED,
+                            path=parts[2],  # new path
+                            old_path=parts[1],  # old path
+                            similarity=similarity,
+                        )
+                    )
 
             elif status.startswith("C"):
                 # Copy
@@ -317,12 +320,14 @@ class GitTracker:
                         pass
 
                 if len(parts) >= 3:
-                    changes.append(FileChange(
-                        change_type=ChangeType.COPIED,
-                        path=parts[2],
-                        old_path=parts[1],
-                        similarity=similarity,
-                    ))
+                    changes.append(
+                        FileChange(
+                            change_type=ChangeType.COPIED,
+                            path=parts[2],
+                            old_path=parts[1],
+                            similarity=similarity,
+                        )
+                    )
 
         return changes
 

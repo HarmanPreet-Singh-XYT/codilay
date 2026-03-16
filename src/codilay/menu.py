@@ -8,14 +8,17 @@ beautiful interactive menu to set up, configure, and run documentation tasks.
 import os
 from typing import Optional
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
-from rich.prompt import Prompt, Confirm
-from rich import box
 
 from codilay.settings import (
-    Settings, PROVIDER_META, DEFAULT_MODELS, SETTINGS_FILE,
+    DEFAULT_MODELS,
+    PROVIDER_META,
+    SETTINGS_FILE,
+    Settings,
 )
 
 console = Console()
@@ -85,6 +88,7 @@ def _int_prompt_with_back(label: str, low: int, high: int, default: int = 1) -> 
 
 # ── Main Menu ─────────────────────────────────────────────────────────────────
 
+
 def main_menu(settings: Settings) -> Optional[dict]:
     """
     Show the main interactive menu.
@@ -105,14 +109,16 @@ def main_menu(settings: Settings) -> Optional[dict]:
         status_icon = "✓" if has_key else "✗"
         status_text = "Ready" if has_key else "API key missing"
 
-        console.print(Panel(
-            f"  Provider: [bold]{label}[/bold]  │  "
-            f"Model: [bold]{model or 'not set'}[/bold]  │  "
-            f"Status: [{status_style}]{status_icon} {status_text}[/{status_style}]",
-            border_style="cyan",
-            title="[bold]Current Configuration[/bold]",
-            title_align="left",
-        ))
+        console.print(
+            Panel(
+                f"  Provider: [bold]{label}[/bold]  │  "
+                f"Model: [bold]{model or 'not set'}[/bold]  │  "
+                f"Status: [{status_style}]{status_icon} {status_text}[/{status_style}]",
+                border_style="cyan",
+                title="[bold]Current Configuration[/bold]",
+                title_align="left",
+            )
+        )
         console.print()
 
         # Menu items
@@ -180,6 +186,7 @@ def main_menu(settings: Settings) -> Optional[dict]:
 
 # ── 1. Document a codebase ────────────────────────────────────────────────────
 
+
 def _menu_document(settings: Settings) -> Optional[dict]:
     """Prompt the user for a target path and return a run action."""
     _clear()
@@ -188,9 +195,7 @@ def _menu_document(settings: Settings) -> Optional[dict]:
 
     prov = settings.default_provider
     if not settings.has_provider_configured(prov):
-        console.print(
-            f"[red]⚠  No API key configured for {PROVIDER_META.get(prov, {}).get('label', prov)}.[/red]"
-        )
+        console.print(f"[red]⚠  No API key configured for {PROVIDER_META.get(prov, {}).get('label', prov)}.[/red]")
         console.print("[dim]Go to [bold]Setup[/bold] or [bold]Manage API Keys[/bold] first.[/dim]\n")
         _pause()
         return None
@@ -229,6 +234,7 @@ def _menu_document(settings: Settings) -> Optional[dict]:
 
 
 # ── 2. Setup (first-time) ────────────────────────────────────────────────────
+
 
 def _menu_setup(settings: Settings):
     """Guided first-time setup wizard."""
@@ -269,7 +275,9 @@ def _menu_setup(settings: Settings):
 
     idx = _int_prompt_with_back(
         "Select provider [dim](0 to cancel)[/dim]",
-        low=1, high=len(providers), default=1,
+        low=1,
+        high=len(providers),
+        default=1,
     )
     if idx is None:
         return  # back to main menu
@@ -320,14 +328,16 @@ def _menu_setup(settings: Settings):
 
     settings.save()
 
-    console.print(Panel(
-        "[bold green]Setup complete! 🎉[/bold green]\n\n"
-        "Your configuration has been saved. You can now:\n"
-        "  • Run [bold]codilay .[/bold] to document a codebase\n"
-        "  • Come back here anytime to change settings\n\n"
-        "No more exporting API keys! 🔑",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            "[bold green]Setup complete! 🎉[/bold green]\n\n"
+            "Your configuration has been saved. You can now:\n"
+            "  • Run [bold]codilay .[/bold] to document a codebase\n"
+            "  • Come back here anytime to change settings\n\n"
+            "No more exporting API keys! 🔑",
+            border_style="green",
+        )
+    )
     _pause()
 
 
@@ -353,6 +363,7 @@ def _prompt_api_key(settings: Settings, provider: str) -> Optional[str]:
 
 # ── 3. Manage API Keys ───────────────────────────────────────────────────────
 
+
 def _menu_api_keys(settings: Settings):
     """View, add, edit, or remove API keys."""
     while True:
@@ -360,8 +371,7 @@ def _menu_api_keys(settings: Settings):
         _header("Manage API Keys")
 
         console.print(
-            "[dim]API keys are stored in ~/.codilay/settings.json. "
-            "They persist across terminal sessions.[/dim]\n"
+            "[dim]API keys are stored in ~/.codilay/settings.json. They persist across terminal sessions.[/dim]\n"
         )
 
         # Show current keys
@@ -408,7 +418,8 @@ def _menu_api_keys(settings: Settings):
             console.print()
             idx = _int_prompt_with_back(
                 f"Which provider (1-{len(providers_with_keys)}, 0 to cancel)",
-                low=1, high=len(providers_with_keys),
+                low=1,
+                high=len(providers_with_keys),
             )
             if idx is None:
                 continue  # back to key list
@@ -419,7 +430,8 @@ def _menu_api_keys(settings: Settings):
             console.print()
             idx = _int_prompt_with_back(
                 f"Which provider (1-{len(providers_with_keys)}, 0 to cancel)",
-                low=1, high=len(providers_with_keys),
+                low=1,
+                high=len(providers_with_keys),
             )
             if idx is None:
                 continue  # back to key list
@@ -436,6 +448,7 @@ def _menu_api_keys(settings: Settings):
 
 
 # ── 4. Provider & Model ──────────────────────────────────────────────────────
+
 
 def _menu_provider_model(settings: Settings):
     """Change the default provider and model."""
@@ -464,7 +477,8 @@ def _menu_provider_model(settings: Settings):
 
     idx = _int_prompt_with_back(
         "Select provider [dim](0 to go back)[/dim]",
-        low=1, high=len(providers),
+        low=1,
+        high=len(providers),
         default=providers.index(settings.default_provider) + 1,
     )
     if idx is None:
@@ -477,9 +491,7 @@ def _menu_provider_model(settings: Settings):
     default_m = DEFAULT_MODELS.get(chosen, "")
     current_m = settings.default_model if settings.default_model else default_m
     console.print(f"\n  Current model: [bold]{current_m}[/bold]")
-    new_model = Prompt.ask(
-        "  New model [dim](Enter to keep, 0 to cancel)[/dim]", default=""
-    )
+    new_model = Prompt.ask("  New model [dim](Enter to keep, 0 to cancel)[/dim]", default="")
 
     if _is_back(new_model):
         # Revert provider change since user cancelled
@@ -488,7 +500,7 @@ def _menu_provider_model(settings: Settings):
     if new_model:
         settings.default_model = new_model
     else:
-        settings.default_model = None   # use provider default
+        settings.default_model = None  # use provider default
 
     # Custom base URL for 'custom' provider
     if chosen == "custom":
@@ -508,13 +520,13 @@ def _menu_provider_model(settings: Settings):
 
     final_model = settings.get_effective_model()
     console.print(
-        f"\n[green]✓[/green] Provider: [bold]{PROVIDER_META[chosen]['label']}[/bold]"
-        f"  Model: [bold]{final_model}[/bold]"
+        f"\n[green]✓[/green] Provider: [bold]{PROVIDER_META[chosen]['label']}[/bold]  Model: [bold]{final_model}[/bold]"
     )
     _pause()
 
 
 # ── 5. Preferences ───────────────────────────────────────────────────────────
+
 
 def _menu_preferences(settings: Settings):
     """Tweak global CodiLay preferences."""
@@ -523,9 +535,15 @@ def _menu_preferences(settings: Settings):
         _header("Preferences")
 
         console.print("[bold]Current settings:[/bold]\n")
-        console.print(f"  [bold cyan][1][/bold cyan] Verbose output:      [bold]{'Yes' if settings.verbose else 'No'}[/bold]")
-        console.print(f"  [bold cyan][2][/bold cyan] Triage mode:         [bold]{settings.triage_mode}[/bold]  [dim](smart | fast | none)[/dim]")
-        console.print(f"  [bold cyan][3][/bold cyan] Include test files:  [bold]{'Yes' if settings.include_tests else 'No'}[/bold]")
+        console.print(
+            f"  [bold cyan][1][/bold cyan] Verbose output:      [bold]{'Yes' if settings.verbose else 'No'}[/bold]"
+        )
+        console.print(
+            f"  [bold cyan][2][/bold cyan] Triage mode:         [bold]{settings.triage_mode}[/bold]  [dim](smart | fast | none)[/dim]"
+        )
+        console.print(
+            f"  [bold cyan][3][/bold cyan] Include test files:  [bold]{'Yes' if settings.include_tests else 'No'}[/bold]"
+        )
         console.print(f"  [bold cyan][4][/bold cyan] Max tokens per call: [bold]{settings.max_tokens_per_call}[/bold]")
         console.print()
         console.print("  [bold cyan][0][/bold cyan] ← Back to main menu")
@@ -581,6 +599,7 @@ def _menu_preferences(settings: Settings):
 
 
 # ── 6. View Settings ─────────────────────────────────────────────────────────
+
 
 def _menu_view_settings(settings: Settings):
     """Show a full summary of current configuration."""
@@ -646,6 +665,7 @@ def _menu_view_settings(settings: Settings):
 
 # ── 7. Chat with codebase ────────────────────────────────────────────────────
 
+
 def _menu_chat(settings: Settings) -> Optional[dict]:
     """Prompt for a codebase path and launch chat."""
     _clear()
@@ -654,16 +674,12 @@ def _menu_chat(settings: Settings) -> Optional[dict]:
 
     prov = settings.default_provider
     if not settings.has_provider_configured(prov):
-        console.print(
-            f"[red]⚠  No API key configured for {PROVIDER_META.get(prov, {}).get('label', prov)}.[/red]"
-        )
+        console.print(f"[red]⚠  No API key configured for {PROVIDER_META.get(prov, {}).get('label', prov)}.[/red]")
         console.print("[dim]Go to [bold]Setup[/bold] or [bold]Manage API Keys[/bold] first.[/dim]\n")
         _pause()
         return None
 
-    raw = Prompt.ask(
-        "Path to documented codebase", default="."
-    )
+    raw = Prompt.ask("Path to documented codebase", default=".")
     if _is_back(raw):
         return None
 
@@ -688,15 +704,14 @@ def _menu_chat(settings: Settings) -> Optional[dict]:
 
 # ── 8. Web UI ─────────────────────────────────────────────────────────────────
 
+
 def _menu_serve(settings: Settings) -> Optional[dict]:
     """Prompt for a codebase path and launch web UI."""
     _clear()
     _header("Launch Web UI")
     _back_hint()
 
-    raw = Prompt.ask(
-        "Path to documented codebase", default="."
-    )
+    raw = Prompt.ask("Path to documented codebase", default=".")
     if _is_back(raw):
         return None
 
@@ -721,44 +736,46 @@ def _menu_serve(settings: Settings) -> Optional[dict]:
 
 # ── 8. Help ───────────────────────────────────────────────────────────────────
 
+
 def _menu_help():
     """Show usage help."""
     _clear()
     _header("Help")
 
-    console.print(Panel(
-        "[bold]CodiLay[/bold] is an AI agent that reads your codebase\n"
-        "and generates comprehensive documentation.\n\n"
-        "[bold cyan]Quick Start[/bold cyan]\n"
-        "  1. Run [bold]codilay[/bold] → interactive menu\n"
-        "  2. Go to [bold]Setup[/bold] to configure your API key\n"
-        "  3. Go to [bold]Document a codebase[/bold] and point to your project\n\n"
-        "[bold cyan]CLI Usage[/bold cyan]\n"
-        "  [bold]codilay .[/bold]                        Document current directory\n"
-        "  [bold]codilay /path/to/project[/bold]         Document a project\n"
-        "  [bold]codilay . -p openai -m gpt-4o[/bold]    Override provider/model\n"
-        "  [bold]codilay chat .[/bold]                   Chat with your codebase\n"
-        "  [bold]codilay serve .[/bold]                  Launch web documentation browser\n"
-        "  [bold]codilay chat . --resume[/bold]          Resume last conversation\n"
-        "  [bold]codilay chat . --list[/bold]            List past conversations\n"
-        "  [bold]codilay setup[/bold]                    Run setup wizard\n"
-        "  [bold]codilay config[/bold]                   View settings\n"
-        "  [bold]codilay keys[/bold]                     Manage API keys\n"
-        "  [bold]codilay status .[/bold]                 Show doc status\n"
-        "  [bold]codilay diff .[/bold]                   Show changes since last run\n"
-        "  [bold]codilay clean .[/bold]                  Remove generated files\n\n"
-        "[bold cyan]Navigation[/bold cyan]\n"
-        "  Enter [bold]0[/bold] or [bold]b[/bold] at any prompt to go back\n"
-        "  Press [bold]Ctrl+C[/bold] to quit immediately\n\n"
-        "[bold cyan]Settings[/bold cyan]\n"
-        f"  Config file: [bold]{SETTINGS_FILE}[/bold]\n"
-        "  API keys are stored persistently — no more exporting!\n\n"
-        "[bold cyan]Links[/bold cyan]\n"
-        "  GitHub:  https://github.com/HarmanPreet-Singh-XYT/codilay\n"
-        "  Issues:  https://github.com/HarmanPreet-Singh-XYT/codilay/issues",
-        border_style="cyan",
-        title="[bold]CodiLay Help[/bold]",
-        title_align="left",
-    ))
+    console.print(
+        Panel(
+            "[bold]CodiLay[/bold] is an AI agent that reads your codebase\n"
+            "and generates comprehensive documentation.\n\n"
+            "[bold cyan]Quick Start[/bold cyan]\n"
+            "  1. Run [bold]codilay[/bold] → interactive menu\n"
+            "  2. Go to [bold]Setup[/bold] to configure your API key\n"
+            "  3. Go to [bold]Document a codebase[/bold] and point to your project\n\n"
+            "[bold cyan]CLI Usage[/bold cyan]\n"
+            "  [bold]codilay .[/bold]                        Document current directory\n"
+            "  [bold]codilay /path/to/project[/bold]         Document a project\n"
+            "  [bold]codilay . -p openai -m gpt-4o[/bold]    Override provider/model\n"
+            "  [bold]codilay chat .[/bold]                   Chat with your codebase\n"
+            "  [bold]codilay serve .[/bold]                  Launch web documentation browser\n"
+            "  [bold]codilay chat . --resume[/bold]          Resume last conversation\n"
+            "  [bold]codilay chat . --list[/bold]            List past conversations\n"
+            "  [bold]codilay setup[/bold]                    Run setup wizard\n"
+            "  [bold]codilay config[/bold]                   View settings\n"
+            "  [bold]codilay keys[/bold]                     Manage API keys\n"
+            "  [bold]codilay status .[/bold]                 Show doc status\n"
+            "  [bold]codilay diff .[/bold]                   Show changes since last run\n"
+            "  [bold]codilay clean .[/bold]                  Remove generated files\n\n"
+            "[bold cyan]Navigation[/bold cyan]\n"
+            "  Enter [bold]0[/bold] or [bold]b[/bold] at any prompt to go back\n"
+            "  Press [bold]Ctrl+C[/bold] to quit immediately\n\n"
+            "[bold cyan]Settings[/bold cyan]\n"
+            f"  Config file: [bold]{SETTINGS_FILE}[/bold]\n"
+            "  API keys are stored persistently — no more exporting!\n\n"
+            "[bold cyan]Links[/bold cyan]\n"
+            "  GitHub:  https://github.com/HarmanPreet-Singh-XYT/codilay\n"
+            "  Issues:  https://github.com/HarmanPreet-Singh-XYT/codilay/issues",
+            border_style="cyan",
+            title="[bold]CodiLay Help[/bold]",
+            title_align="left",
+        )
+    )
     _pause()
-

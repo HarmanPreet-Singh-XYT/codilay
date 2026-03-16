@@ -14,7 +14,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-
 # ── Data helpers ──────────────────────────────────────────────────────────────
 
 
@@ -158,9 +157,7 @@ class ChatStore:
 
     # ── Message operations ────────────────────────────────────────
 
-    def add_message(
-        self, conv_id: str, message: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def add_message(self, conv_id: str, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Append a message to a conversation. Returns updated conversation."""
         conv = self._read_conv(conv_id)
         if conv is None:
@@ -170,18 +167,14 @@ class ChatStore:
 
         # Auto-title from first user message
         if conv["title"] == "New conversation":
-            first_user = next(
-                (m for m in conv["messages"] if m["role"] == "user"), None
-            )
+            first_user = next((m for m in conv["messages"] if m["role"] == "user"), None)
             if first_user:
                 conv["title"] = self._auto_title(first_user["content"])
 
         self._write_conv(conv)
         return conv
 
-    def edit_message(
-        self, conv_id: str, msg_id: str, new_content: str
-    ) -> Optional[Dict[str, Any]]:
+    def edit_message(self, conv_id: str, msg_id: str, new_content: str) -> Optional[Dict[str, Any]]:
         """
         Edit a message and truncate everything after it.
         Returns the updated conversation (ready for re-running from that point).
@@ -212,9 +205,7 @@ class ChatStore:
         self._write_conv(conv)
         return True
 
-    def get_pinned_messages(
-        self, conv_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    def get_pinned_messages(self, conv_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get pinned messages. If conv_id given, only from that conversation.
         Otherwise, from ALL conversations (project-wide pinned knowledge).
@@ -243,9 +234,7 @@ class ChatStore:
 
     # ── Branching ─────────────────────────────────────────────────
 
-    def branch_conversation(
-        self, conv_id: str, from_msg_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def branch_conversation(self, conv_id: str, from_msg_id: str) -> Optional[Dict[str, Any]]:
         """
         Create a new conversation that branches from an existing one at
         the given message. Copies messages up to (and including) from_msg_id.
@@ -263,9 +252,7 @@ class ChatStore:
             branch_point_msg_id=from_msg_id,
         )
         # Copy messages up to the branch point
-        branch["messages"] = [
-            {**m, "id": _make_id()} for m in conv["messages"][: idx + 1]
-        ]
+        branch["messages"] = [{**m, "id": _make_id()} for m in conv["messages"][: idx + 1]]
         self._write_conv(branch)
         return branch
 
@@ -304,9 +291,7 @@ class ChatStore:
 
     # ── Context builder (for LLM calls) ───────────────────────────
 
-    def build_chat_context(
-        self, conv_id: str, max_messages: int = 20
-    ) -> List[Dict[str, str]]:
+    def build_chat_context(self, conv_id: str, max_messages: int = 20) -> List[Dict[str, str]]:
         """
         Build an LLM-ready message list from conversation history.
         Includes pinned messages at the top for persistent context.
@@ -337,17 +322,12 @@ class ChatStore:
             context.append(
                 {
                     "role": "system",
-                    "content": (
-                        "Previously established knowledge (pinned answers):\n\n"
-                        + pinned_text
-                    ),
+                    "content": ("Previously established knowledge (pinned answers):\n\n" + pinned_text),
                 }
             )
 
         # Current conversation pinned messages
-        conv_pinned = [
-            m for m in conv["messages"] if m.get("pinned") and m["role"] == "assistant"
-        ]
+        conv_pinned = [m for m in conv["messages"] if m.get("pinned") and m["role"] == "assistant"]
         recent = conv["messages"][-max_messages:]
 
         # Merge: pinned first (deduped), then recent
@@ -425,9 +405,7 @@ class ChatStore:
 
     def clear_memory(self):
         """Wipe all cross-session memory."""
-        self.save_memory(
-            {"facts": [], "preferences": {}, "frequent_topics": {}, "updated_at": None}
-        )
+        self.save_memory({"facts": [], "preferences": {}, "frequent_topics": {}, "updated_at": None})
 
     def build_memory_context(self) -> str:
         """Build a text summary of memory for injection into LLM context."""
@@ -444,12 +422,8 @@ class ChatStore:
 
         if mem.get("frequent_topics"):
             # Top 5 most-asked topics
-            sorted_topics = sorted(
-                mem["frequent_topics"].items(), key=lambda x: x[1], reverse=True
-            )[:5]
-            topics_text = "\n".join(
-                f"- {t} (asked {c} times)" for t, c in sorted_topics
-            )
+            sorted_topics = sorted(mem["frequent_topics"].items(), key=lambda x: x[1], reverse=True)[:5]
+            topics_text = "\n".join(f"- {t} (asked {c} times)" for t, c in sorted_topics)
             parts.append(f"Frequently asked topics:\n{topics_text}")
 
         return "\n\n".join(parts) if parts else ""
@@ -466,9 +440,7 @@ class ChatStore:
             return None
         return conv["messages"][idx]
 
-    def get_preceding_question(
-        self, conv_id: str, msg_id: str
-    ) -> Optional[str]:
+    def get_preceding_question(self, conv_id: str, msg_id: str) -> Optional[str]:
         """Find the user question that preceded a given assistant message."""
         conv = self._read_conv(conv_id)
         if conv is None:
@@ -484,9 +456,7 @@ class ChatStore:
 
     # ── Promote to doc ────────────────────────────────────────────
 
-    def promote_to_doc(
-        self, conv_id: str, msg_id: str, docstore, llm_client
-    ) -> Optional[str]:
+    def promote_to_doc(self, conv_id: str, msg_id: str, docstore, llm_client) -> Optional[str]:
         """
         Promote a chat answer to a documentation section.
 
@@ -508,8 +478,7 @@ class ChatStore:
         # Ask LLM to reformat
         prompt = promote_to_doc_prompt(question, msg["content"])
         result = llm_client.call(
-            "You reformat chat Q&A into documentation sections. "
-            "Return only valid JSON.",
+            "You reformat chat Q&A into documentation sections. Return only valid JSON.",
             prompt,
         )
 
@@ -561,8 +530,7 @@ class ChatStore:
 
         prompt = memory_extraction_prompt(conv["messages"])
         result = llm_client.call(
-            "You extract memorable facts from conversations. "
-            "Return only valid JSON.",
+            "You extract memorable facts from conversations. Return only valid JSON.",
             prompt,
         )
 

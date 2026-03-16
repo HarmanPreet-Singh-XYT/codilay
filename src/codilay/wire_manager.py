@@ -1,6 +1,6 @@
 """Wire Manager — tracks wire lifecycle with rename/delete awareness."""
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class WireManager:
@@ -26,9 +26,7 @@ class WireManager:
         self._wire_counter += 1
         return wid
 
-    def open_wire(
-        self, from_file: str, to_target: str, wire_type: str, context: str = ""
-    ) -> Dict[str, Any]:
+    def open_wire(self, from_file: str, to_target: str, wire_type: str, context: str = "") -> Dict[str, Any]:
         for w in self._open:
             if w["from"] == from_file and w["to"] == to_target:
                 if len(context) > len(w.get("context", "")):
@@ -46,9 +44,7 @@ class WireManager:
         self._open.append(wire)
         return wire
 
-    def close_wire(
-        self, wire_id: str, resolved_in: str, summary: str = ""
-    ) -> Optional[Dict]:
+    def close_wire(self, wire_id: str, resolved_in: str, summary: str = "") -> Optional[Dict]:
         wire = None
         for w in self._open:
             if w["id"] == wire_id:
@@ -63,9 +59,7 @@ class WireManager:
         self._closed.append(wire)
         return wire
 
-    def close_wires_by_ids(
-        self, wire_ids: List[str], resolved_in: str
-    ) -> List[Dict]:
+    def close_wires_by_ids(self, wire_ids: List[str], resolved_in: str) -> List[Dict]:
         closed = []
         for wid in wire_ids:
             result = self.close_wire(wid, resolved_in)
@@ -79,9 +73,7 @@ class WireManager:
             to = w["to"]
             if to == target:
                 matches.append(w)
-            elif target.endswith("/" + to) or target.endswith(
-                "/" + to.split("/")[-1]
-            ):
+            elif target.endswith("/" + to) or target.endswith("/" + to.split("/")[-1]):
                 matches.append(w)
             elif to.startswith("./") or to.startswith("../"):
                 clean = to.lstrip("./").replace("../", "")
@@ -113,11 +105,7 @@ class WireManager:
         file_set = set(files)
 
         for wire in self._closed:
-            if (
-                wire.get("from") in file_set
-                or wire.get("to") in file_set
-                or wire.get("resolved_in") in file_set
-            ):
+            if wire.get("from") in file_set or wire.get("to") in file_set or wire.get("resolved_in") in file_set:
                 to_reopen.append(wire)
 
         for wire in to_reopen:
@@ -149,7 +137,7 @@ class WireManager:
             if wire.get("resolved_in") == old_path:
                 wire["resolved_in"] = new_path
                 changed = True
-            
+
             if changed:
                 updated += 1
 
@@ -169,19 +157,13 @@ class WireManager:
         # Wires originating from deleted file — close with note
         from_wires = [w for w in self._open if w["from"] == deleted_path]
         for w in from_wires:
-            w["context"] = (
-                f"[SOURCE DELETED] {w.get('context', '')} "
-                f"— Origin file {deleted_path} was removed"
-            )
+            w["context"] = f"[SOURCE DELETED] {w.get('context', '')} — Origin file {deleted_path} was removed"
             result["orphaned_from"].append(w["id"])
 
         # Wires pointing to deleted file — mark as permanently unresolvable
         to_wires = [w for w in self._open if w["to"] == deleted_path]
         for w in to_wires:
-            w["context"] = (
-                f"[TARGET DELETED] {w.get('context', '')} "
-                f"— Target file {deleted_path} was removed"
-            )
+            w["context"] = f"[TARGET DELETED] {w.get('context', '')} — Target file {deleted_path} was removed"
             result["orphaned_to"].append(w["id"])
 
         # Closed wires that referenced the deleted file — re-open
@@ -197,8 +179,7 @@ class WireManager:
             wire.pop("resolved_in", None)
             wire.pop("summary", None)
             wire["context"] = (
-                f"[RE-OPENED: file deleted] {wire.get('context', '')} "
-                f"— {deleted_path} was removed from codebase"
+                f"[RE-OPENED: file deleted] {wire.get('context', '')} — {deleted_path} was removed from codebase"
             )
             self._open.append(wire)
             result["reopened"].append(wire["id"])

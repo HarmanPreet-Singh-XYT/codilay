@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime, timezone
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 class DocStore:
@@ -24,8 +24,11 @@ class DocStore:
             sid = self._slugify(section_name)
             if sid != "overview":
                 self.add_section(
-                    section_id=sid, title=section_name, content="",
-                    tags=[sid], file="",
+                    section_id=sid,
+                    title=section_name,
+                    content="",
+                    tags=[sid],
+                    file="",
                 )
 
     def add_section(
@@ -61,13 +64,9 @@ class DocStore:
         if update_type == "replace":
             sec["content"] = content
         elif update_type == "append":
-            sec["content"] = (
-                sec["content"] + "\n\n" + content if sec["content"] else content
-            )
+            sec["content"] = sec["content"] + "\n\n" + content if sec["content"] else content
         elif update_type == "insert_link":
-            sec["content"] = (
-                sec["content"] + "\n" + content if sec["content"] else content
-            )
+            sec["content"] = sec["content"] + "\n" + content if sec["content"] else content
 
     def get_relevant_sections(
         self,
@@ -93,21 +92,14 @@ class DocStore:
                 sec_tags = set(t.lower() for t in sec.get("tags", []))
                 import_terms = set()
                 for imp in file_imports:
-                    parts = (
-                        imp.replace("./", "")
-                        .replace("../", "")
-                        .replace(".", "/")
-                        .split("/")
-                    )
+                    parts = imp.replace("./", "").replace("../", "").replace(".", "/").split("/")
                     import_terms.update(p.lower() for p in parts if p)
                 if sec_tags & import_terms:
                     relevant[sid] = sec
                     continue
             if open_wires:
                 for w in open_wires:
-                    if w.get("to") == file_path or w.get("from") == sec.get(
-                        "file", ""
-                    ):
+                    if w.get("to") == file_path or w.get("from") == sec.get("file", ""):
                         relevant[sid] = sec
                         break
 
@@ -164,10 +156,7 @@ class DocStore:
             if sec.get("file") in file_set:
                 # Don't delete — mark as stale so the processor can update it
                 old_content = sec["content"]
-                sec["content"] = (
-                    f"> ⚠️ *This section is being updated — source file changed.*\n\n"
-                    f"{old_content}"
-                )
+                sec["content"] = f"> ⚠️ *This section is being updated — source file changed.*\n\n{old_content}"
                 invalidated.append(sid)
 
             # Also check deps
@@ -193,17 +182,12 @@ class DocStore:
 
             # Update deps
             if old_path in sec.get("deps", []):
-                sec["deps"] = [
-                    new_path if d == old_path else d
-                    for d in sec["deps"]
-                ]
+                sec["deps"] = [new_path if d == old_path else d for d in sec["deps"]]
                 changed = True
 
             # Update content references
             if old_path in sec.get("content", ""):
-                sec["content"] = sec["content"].replace(
-                    old_path, new_path
-                )
+                sec["content"] = sec["content"].replace(old_path, new_path)
                 changed = True
 
             if changed:
@@ -244,16 +228,10 @@ class DocStore:
         if not closed_wires:
             content = "*No internal dependencies were traced.*"
         else:
-            content = (
-                "| From | To | Type | Summary |\n"
-                "|------|----|------|--------|\n"
-            )
+            content = "| From | To | Type | Summary |\n|------|----|------|--------|\n"
             for w in closed_wires:
                 s = w.get("summary", w.get("context", "")).replace("|", "\\|")
-                content += (
-                    f"| `{w.get('from', '?')}` | `{w.get('to', '?')}` "
-                    f"| {w.get('type', '?')} | {s} |\n"
-                )
+                content += f"| `{w.get('from', '?')}` | `{w.get('to', '?')}` | {w.get('type', '?')} | {s} |\n"
         self.add_section(
             section_id="dependency-graph",
             title="Dependency Graph",
@@ -271,7 +249,7 @@ class DocStore:
             others = [w for w in open_wires if w not in external and w not in config]
 
             content = ""
-            
+
             if others:
                 content += "### Missing or Dead References\n"
                 content += "| From | To | Type | Notes |\n"
@@ -291,7 +269,11 @@ class DocStore:
                 content += "\n"
 
             if external:
-                content += "<details>\n<summary><b>External Libraries & Packages (" + str(len(external)) + ")</b></summary>\n\n"
+                content += (
+                    "<details>\n<summary><b>External Libraries & Packages ("
+                    + str(len(external))
+                    + ")</b></summary>\n\n"
+                )
                 content += "| From | To | Type | Notes |\n"
                 content += "|------|----|------|-------|\n"
                 for w in external:
@@ -315,11 +297,7 @@ class DocStore:
         ]
 
         ordered = sorted(
-            [
-                (sid, sec)
-                for sid, sec in self._sections.items()
-                if sec.get("content")
-            ],
+            [(sid, sec) for sid, sec in self._sections.items() if sec.get("content")],
             key=lambda x: x[1].get("order", 999),
         )
 

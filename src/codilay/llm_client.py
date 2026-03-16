@@ -4,10 +4,9 @@ import json
 import os
 import sys
 import time
-from typing import Dict, Any
+from typing import Any, Dict
 
 import tiktoken
-
 
 # ── Provider registry ─────────────────────────────────────────────────────────
 # "sdk" is "anthropic" (native SDK) or "openai" (OpenAI SDK / compatible).
@@ -21,7 +20,7 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "openai": {
         "sdk": "openai",
-        "base_url": None,                   # uses SDK default
+        "base_url": None,  # uses SDK default
         "env_key": "OPENAI_API_KEY",
         "default_model": "gpt-4o",
         "label": "OpenAI",
@@ -29,7 +28,7 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "ollama": {
         "sdk": "openai",
         "base_url": "http://localhost:11434/v1",
-        "env_key": None,                    # no key for local
+        "env_key": None,  # no key for local
         "default_model": "llama3.2",
         "label": "Ollama (local)",
     },
@@ -77,9 +76,9 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "custom": {
         "sdk": "openai",
-        "base_url": None,                   # MUST be supplied
+        "base_url": None,  # MUST be supplied
         "env_key": "CUSTOM_LLM_API_KEY",
-        "default_model": None,              # MUST be supplied
+        "default_model": None,  # MUST be supplied
         "label": "Custom endpoint",
     },
 }
@@ -99,12 +98,14 @@ def _get_rate_limit_errors():
     if _anthropic_rate_limit_error is None:
         try:
             import anthropic
+
             _anthropic_rate_limit_error = anthropic.RateLimitError
         except ImportError:
             _anthropic_rate_limit_error = type(None)
     if _openai_rate_limit_error is None:
         try:
             import openai
+
             _openai_rate_limit_error = openai.RateLimitError
         except ImportError:
             _openai_rate_limit_error = type(None)
@@ -126,6 +127,7 @@ def _extract_retry_after(exc) -> float:
 
 # ── LLM Client ───────────────────────────────────────────────────────────────
 
+
 class LLMClient:
     """Unified LLM client supporting Anthropic, OpenAI, and OpenAI-compatible providers."""
 
@@ -141,21 +143,17 @@ class LLMClient:
 
         pcfg = PROVIDER_CONFIGS.get(self.provider)
         if pcfg is None:
-            raise ValueError(
-                f"Unknown provider '{self.provider}'. "
-                f"Supported: {', '.join(ALL_PROVIDERS)}"
-            )
+            raise ValueError(f"Unknown provider '{self.provider}'. Supported: {', '.join(ALL_PROVIDERS)}")
 
         # Resolve model: explicit config → provider default
         self.model = config.llm_model or pcfg["default_model"]
         if not self.model:
             raise ValueError(
-                f"No model specified for provider '{self.provider}'. "
-                f"Set it via --model or in codilay.config.json"
+                f"No model specified for provider '{self.provider}'. Set it via --model or in codilay.config.json"
             )
 
         self.max_tokens = config.max_tokens_per_call
-        self._sdk_type = pcfg["sdk"]        # "anthropic" or "openai"
+        self._sdk_type = pcfg["sdk"]  # "anthropic" or "openai"
 
         # ── Build SDK client ───────────────────────────────────────
         if self._sdk_type == "anthropic":
@@ -175,16 +173,10 @@ class LLMClient:
         try:
             import anthropic
         except ImportError:
-            raise ImportError(
-                "The 'anthropic' package is required. "
-                "Install: pip install anthropic"
-            )
+            raise ImportError("The 'anthropic' package is required. Install: pip install anthropic")
         api_key = os.environ.get(pcfg["env_key"])
         if not api_key:
-            raise ValueError(
-                f"{pcfg['env_key']} not set. "
-                f"export {pcfg['env_key']}=your-key"
-            )
+            raise ValueError(f"{pcfg['env_key']} not set. export {pcfg['env_key']}=your-key")
         self.client = anthropic.Anthropic(api_key=api_key)
 
     # ── OpenAI / compatible init ───────────────────────────────────
@@ -193,10 +185,7 @@ class LLMClient:
         try:
             import openai
         except ImportError:
-            raise ImportError(
-                "The 'openai' package is required for this provider. "
-                "Install: pip install openai"
-            )
+            raise ImportError("The 'openai' package is required for this provider. Install: pip install openai")
 
         # Resolve base URL: CLI/config override → provider default → env
         base_url = getattr(config, "llm_base_url", None) or pcfg.get("base_url")
@@ -217,9 +206,7 @@ class LLMClient:
         if env_key:
             api_key = os.environ.get(env_key)
             if not api_key:
-                raise ValueError(
-                    f"{env_key} not set. export {env_key}=your-key"
-                )
+                raise ValueError(f"{env_key} not set. export {env_key}=your-key")
         else:
             # No key required (e.g. Ollama local)
             api_key = "not-needed"
@@ -239,7 +226,11 @@ class LLMClient:
     # ── Public entry point ─────────────────────────────────────────
 
     def call(
-        self, system_prompt: str, user_prompt: str, retries: int = 3, json_mode: bool = True
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        retries: int = 3,
+        json_mode: bool = True,
     ) -> Dict[str, Any]:
         raw = ""
         for attempt in range(retries):
@@ -251,20 +242,18 @@ class LLMClient:
                 return self._parse_json(raw)
             except json.JSONDecodeError:
                 if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                     continue
                 return self._salvage_json(raw)
             except Exception:
                 if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                     continue
                 raise
 
     # ── Rate-limit wrapper ─────────────────────────────────────────
 
-    def _raw_call_with_rate_limit(
-        self, system_prompt: str, user_prompt: str, json_mode: bool = False
-    ) -> str:
+    def _raw_call_with_rate_limit(self, system_prompt: str, user_prompt: str, json_mode: bool = False) -> str:
         """Call _raw_call with automatic retry on 429 rate-limit errors."""
         anthropic_err, openai_err = _get_rate_limit_errors()
         rate_limit_errors = (anthropic_err, openai_err)
@@ -302,7 +291,7 @@ class LLMClient:
             return self._call_openai(system_prompt, user_prompt, json_mode=json_mode)
 
     def _call_anthropic(self, system_prompt: str, user_prompt: str) -> str:
-        # Anthropic doesn't have a specific 'json_mode' toggle like OpenAI, 
+        # Anthropic doesn't have a specific 'json_mode' toggle like OpenAI,
         # it relies on the prompt.
         response = self.client.messages.create(
             model=self.model,

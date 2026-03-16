@@ -1,7 +1,7 @@
 """Configuration loader for CodiLay."""
 
-import os
 import json
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -13,19 +13,31 @@ class CodiLayConfig:
     notes: str = ""
     instructions: str = ""
     entry_hint: Optional[str] = None
-    llm_model: Optional[str] = None            # None = use provider default
+    llm_model: Optional[str] = None  # None = use provider default
     llm_provider: str = "anthropic"
-    llm_base_url: Optional[str] = None         # Override provider's default base URL
+    llm_base_url: Optional[str] = None  # Override provider's default base URL
     max_tokens_per_call: int = 4096
     max_file_size: int = 50000
     skip_binary: bool = True
-    skip_generated: List[str] = field(default_factory=lambda: [
-        "package-lock.json", "yarn.lock", "poetry.lock", "Pipfile.lock",
-        "composer.lock", "Gemfile.lock", "Cargo.lock",
-        "*.min.js", "*.min.css", "*.map",
-        "*.pyc", "*.pyo", "__pycache__",
-        ".DS_Store", "Thumbs.db",
-    ])
+    skip_generated: List[str] = field(
+        default_factory=lambda: [
+            "package-lock.json",
+            "yarn.lock",
+            "poetry.lock",
+            "Pipfile.lock",
+            "composer.lock",
+            "Gemfile.lock",
+            "Cargo.lock",
+            "*.min.js",
+            "*.min.css",
+            "*.map",
+            "*.pyc",
+            "*.pyo",
+            "__pycache__",
+            ".DS_Store",
+            "Thumbs.db",
+        ]
+    )
 
     # Triage options
     triage_mode: str = "smart"
@@ -34,9 +46,9 @@ class CodiLayConfig:
     force_skip: List[str] = field(default_factory=list)
 
     # Chunking options
-    chunk_token_threshold: int = 6000   # Files above this get chunked
-    max_chunk_tokens: int = 4000        # Max tokens per detail chunk
-    chunk_overlap_ratio: float = 0.10   # 10% overlap between chunks
+    chunk_token_threshold: int = 6000  # Files above this get chunked
+    max_chunk_tokens: int = 4000  # Max tokens per detail chunk
+    chunk_overlap_ratio: float = 0.10  # 10% overlap between chunks
 
     @classmethod
     def load(cls, target_path: str, config_path: Optional[str] = None) -> "CodiLayConfig":
@@ -79,14 +91,8 @@ class CodiLayConfig:
             # Chunking
             chunking = data.get("chunking", {})
             if isinstance(chunking, dict):
-                config.chunk_token_threshold = chunking.get(
-                    "tokenThreshold", 6000
-                )
-                config.max_chunk_tokens = chunking.get(
-                    "maxChunkTokens", 4000
-                )
-                config.chunk_overlap_ratio = chunking.get(
-                    "overlapRatio", 0.10
-                )
+                config.chunk_token_threshold = chunking.get("tokenThreshold", 6000)
+                config.max_chunk_tokens = chunking.get("maxChunkTokens", 4000)
+                config.chunk_overlap_ratio = chunking.get("overlapRatio", 0.10)
 
         return config

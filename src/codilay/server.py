@@ -11,21 +11,20 @@ Usage:
     codilay serve . --port 8484
 """
 
+import asyncio
 import json
 import os
-import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from codilay.state import AgentState
-from codilay.config import CodiLayConfig
-from codilay.settings import Settings
 from codilay.chatstore import ChatStore, make_message
+from codilay.config import CodiLayConfig
 from codilay.retriever import Retriever
-
+from codilay.settings import Settings
+from codilay.state import AgentState
 
 # ── Data models ───────────────────────────────────────────────────────────────
 
@@ -71,8 +70,7 @@ def create_app(
     # ── Validate output exists ────────────────────────────────────
     if not os.path.exists(codebase_md_path):
         raise FileNotFoundError(
-            f"No CODEBASE.md found at {codebase_md_path}. "
-            f"Run 'codilay {target_path}' first to generate documentation."
+            f"No CODEBASE.md found at {codebase_md_path}. Run 'codilay {target_path}' first to generate documentation."
         )
 
     app = FastAPI(
@@ -267,8 +265,8 @@ def create_app(
             if settings.custom_base_url:
                 cfg.llm_base_url = settings.custom_base_url
 
-            from codilay.llm_client import LLMClient
             from codilay.docstore import DocStore
+            from codilay.llm_client import LLMClient
 
             llm = LLMClient(cfg)
 
@@ -277,14 +275,12 @@ def create_app(
             docstore = DocStore()
             docstore.load_from_state(state.section_index, state.section_contents)
 
-            section_id = await asyncio.to_thread(
-                chat_store.promote_to_doc, conv_id, msg_id, docstore, llm
-            )
+            section_id = await asyncio.to_thread(chat_store.promote_to_doc, conv_id, msg_id, docstore, llm)
 
             if section_id is None:
                 raise HTTPException(
                     status_code=400,
-                    detail="Could not promote message (must be an assistant message)"
+                    detail="Could not promote message (must be an assistant message)",
                 )
 
             # Re-render CODEBASE.md with the new section
@@ -378,9 +374,7 @@ def create_app(
         pinned_msgs = chat_store.get_pinned_messages(conv_id)
         pinned_ctx = ""
         if pinned_msgs:
-            pinned_ctx = "\n\n".join(
-                f"- {m['content'][:200]}" for m in pinned_msgs[:5]
-            )
+            pinned_ctx = "\n\n".join(f"- {m['content'][:200]}" for m in pinned_msgs[:5])
 
         # ── Build conversation history ────────────────────────────
         chat_context = chat_store.build_chat_context(conv_id, max_messages=10)
@@ -397,10 +391,18 @@ def create_app(
         def _should_escalate_by_keyword(question: str) -> bool:
             q = question.lower()
             deep_patterns = [
-                "show me the code", "show the code", "exactly how", "line by line",
-                "implementation detail", "source code", "what does the code",
-                "read the file", "look at the file", "open the file",
-                "specific implementation", "actual code"
+                "show me the code",
+                "show the code",
+                "exactly how",
+                "line by line",
+                "implementation detail",
+                "source code",
+                "what does the code",
+                "read the file",
+                "look at the file",
+                "open the file",
+                "specific implementation",
+                "actual code",
             ]
             return any(p in q for p in deep_patterns)
 
@@ -417,16 +419,15 @@ def create_app(
             if confidence >= 0.7 and answer.strip():
                 # Persist assistant message
                 asst_msg = make_message(
-                    "assistant", answer,
+                    "assistant",
+                    answer,
                     sources=sources,
                     confidence=confidence,
                 )
                 chat_store.add_message(conv_id, asst_msg)
 
                 # Track topic
-                chat_store.track_topic(
-                    relevant_sections[0].title if relevant_sections else question[:50]
-                )
+                chat_store.track_topic(relevant_sections[0].title if relevant_sections else question[:50])
 
                 return ChatResponse(
                     answer=answer,
@@ -441,13 +442,12 @@ def create_app(
 
         # ── Escalate to deep agent ────────────────────────────────
         print(f"🔍 Layer 3: Escalating to Deep Agent (found {len(relevant_sections)} relevant sections)...")
-        answer, sources = await _deep_agent_answer(
-            question, relevant_sections, state, target_path, history_text
-        )
+        answer, sources = await _deep_agent_answer(question, relevant_sections, state, target_path, history_text)
         print(f"✅ Deep Agent generated answer from {len(sources)} files.")
 
         asst_msg = make_message(
-            "assistant", answer,
+            "assistant",
+            answer,
             sources=sources,
             confidence=1.0,
             escalated=True,
@@ -527,9 +527,7 @@ def create_app(
             )
 
             # Plain text call — we want free-form response, not JSON
-            raw_text = await asyncio.to_thread(
-                llm._raw_call_with_rate_limit, system, user, json_mode=False
-            )
+            raw_text = await asyncio.to_thread(llm._raw_call_with_rate_limit, system, user, json_mode=False)
 
             # Extract confidence and clean answer
             confidence = 0.5
@@ -623,9 +621,7 @@ def create_app(
                         full = os.path.join(project_path, fpath)
                         if os.path.exists(full):
                             try:
-                                with open(
-                                    full, "r", encoding="utf-8", errors="replace"
-                                ) as fh:
+                                with open(full, "r", encoding="utf-8", errors="replace") as fh:
                                     content = fh.read()
                                 if len(content) > 10000:
                                     content = content[:10000] + "\n\n... [truncated]"
@@ -652,18 +648,12 @@ def create_app(
             doc_context = ""
             if relevant_sections:
                 doc_parts = [sec.formatted for sec in relevant_sections[:3]]
-                doc_context = (
-                    "Existing documentation context:\n\n"
-                    + "\n---\n".join(doc_parts)
-                    + "\n\n---\n\n"
-                )
+                doc_context = "Existing documentation context:\n\n" + "\n---\n".join(doc_parts) + "\n\n---\n\n"
 
             # Conversation history context
             history_section = ""
             if history_text:
-                history_section = (
-                    f"\n\nRecent conversation:\n{history_text}\n\n---\n\n"
-                )
+                history_section = f"\n\nRecent conversation:\n{history_text}\n\n---\n\n"
 
             system = (
                 "You are a deep codebase analysis agent. You have access to actual "
@@ -674,15 +664,9 @@ def create_app(
                 "entire response in a JSON object or any other format."
             )
 
-            user = (
-                f"{doc_context}{history_section}"
-                f"Source code:\n\n{source_context}\n\n---\n\n"
-                f"Question: {question}"
-            )
+            user = f"{doc_context}{history_section}Source code:\n\n{source_context}\n\n---\n\nQuestion: {question}"
 
-            raw_text = await asyncio.to_thread(
-                llm._raw_call_with_rate_limit, system, user, json_mode=False
-            )
+            raw_text = await asyncio.to_thread(llm._raw_call_with_rate_limit, system, user, json_mode=False)
 
             return raw_text.strip(), list(file_contents.keys())
 
@@ -725,9 +709,7 @@ def create_app(
             from codilay.llm_client import LLMClient
 
             llm = LLMClient(cfg)
-            facts_added = await asyncio.to_thread(
-                chat_store.extract_and_store_memory, conv_id, llm
-            )
+            facts_added = await asyncio.to_thread(chat_store.extract_and_store_memory, conv_id, llm)
             return {"facts_added": facts_added}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

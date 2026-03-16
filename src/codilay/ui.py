@@ -3,11 +3,11 @@
 import fnmatch
 from contextlib import contextmanager
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.prompt import Prompt
-from rich import box
+from rich.table import Table
 
 
 class UI:
@@ -26,8 +26,7 @@ class UI:
 """
         self.console.print(
             Panel(
-                f"[bold cyan]{banner}[/bold cyan]\n"
-                "  [dim]AI Agent for Codebase Documentation[/dim]",
+                f"[bold cyan]{banner}[/bold cyan]\n  [dim]AI Agent for Codebase Documentation[/dim]",
                 border_style="cyan",
                 padding=(0, 2),
             )
@@ -48,15 +47,11 @@ class UI:
             short = config.notes[:80] + ("…" if len(config.notes) > 80 else "")
             table.add_row("Notes", short)
         if config.instructions:
-            short = config.instructions[:80] + (
-                "…" if len(config.instructions) > 80 else ""
-            )
+            short = config.instructions[:80] + ("…" if len(config.instructions) > 80 else "")
             table.add_row("Instructions", short)
         if config.entry_hint:
             table.add_row("Entry Hint", config.entry_hint)
-        table.add_row(
-            "Ignore Patterns", f"{len(config.ignore_patterns)} custom patterns"
-        )
+        table.add_row("Ignore Patterns", f"{len(config.ignore_patterns)} custom patterns")
 
         self.console.print(table)
         self.console.print()
@@ -108,9 +103,7 @@ class UI:
 
     @contextmanager
     def spinner(self, text: str):
-        with self.console.status(
-            f"[bold blue]{text}[/bold blue]", spinner="dots"
-        ):
+        with self.console.status(f"[bold blue]{text}[/bold blue]", spinner="dots"):
             yield
 
     def show_file_tree(self, tree_text: str):
@@ -148,9 +141,7 @@ class UI:
             sections = skeleton.get("suggested_sections", [])
             self.console.print(f"\n  [cyan]Doc Title:[/cyan] {title}")
             if sections:
-                self.console.print(
-                    f"  [cyan]Sections:[/cyan] {', '.join(sections)}"
-                )
+                self.console.print(f"  [cyan]Sections:[/cyan] {', '.join(sections)}")
 
     # ── Git-aware re-run prompt ──────────────────────────────────
 
@@ -168,10 +159,7 @@ class UI:
         # Commit info
         commits_text = ""
         if diff_result.commits_behind > 0:
-            commits_text = (
-                f"\n\n[dim]Commits since last doc "
-                f"({diff_result.commits_behind}):[/dim]\n"
-            )
+            commits_text = f"\n\n[dim]Commits since last doc ({diff_result.commits_behind}):[/dim]\n"
             for msg in diff_result.commit_messages[:10]:
                 commits_text += f"  [dim]{msg}[/dim]\n"
             if len(diff_result.commit_messages) > 10:
@@ -202,18 +190,16 @@ class UI:
         )
 
         choice = Prompt.ask("Choice", choices=["1", "2", "3", "q"], default="1")
-        return {"1": "git_update", "2": "specific", "3": "full", "q": "quit"}.get(
-            choice, "quit"
-        )
+        return {"1": "git_update", "2": "specific", "3": "full", "q": "quit"}.get(choice, "quit")
 
     def prompt_interrupted_run(self, state) -> str:
         """Prompt user when an interrupted run is detected."""
         self.console.print()
-        
+
         processed = len(state.processed)
         remaining = len(state.queue)
         total = processed + remaining
-        
+
         panel_text = (
             f"[bold]CodiLay detected an interrupted run.[/bold]\n\n"
             f"  • Processed: [green]{processed}[/green] files\n"
@@ -224,7 +210,7 @@ class UI:
             "  [cyan][2][/cyan] Start fresh (full re-run)\n"
             "  [cyan][q][/cyan] Quit"
         )
-        
+
         self.console.print(
             Panel(
                 panel_text,
@@ -232,7 +218,7 @@ class UI:
                 title="[bold orange3]Interrupted Run Found[/bold orange3]",
             )
         )
-        
+
         choice = Prompt.ask("Choice", choices=["1", "2", "q"], default="1")
         return {"1": "resume", "2": "full", "q": "quit"}.get(choice, "quit")
 
@@ -253,17 +239,11 @@ class UI:
             )
         )
         choice = Prompt.ask("Choice", choices=["1", "2", "3", "q"], default="1")
-        return {"1": "update", "2": "specific", "3": "full", "q": "quit"}.get(
-            choice, "quit"
-        )
+        return {"1": "update", "2": "specific", "3": "full", "q": "quit"}.get(choice, "quit")
 
     def prompt_specific_files(self, all_files: list) -> list:
-        self.console.print(
-            "\nEnter file paths (one per line, empty line to finish):"
-        )
-        self.console.print(
-            "[dim]You can also use glob patterns like 'src/*.py'[/dim]"
-        )
+        self.console.print("\nEnter file paths (one per line, empty line to finish):")
+        self.console.print("[dim]You can also use glob patterns like 'src/*.py'[/dim]")
 
         files = []
         while True:
@@ -279,14 +259,10 @@ class UI:
             else:
                 matches = [f for f in all_files if line in f]
                 if matches:
-                    self.console.print(
-                        f"  [dim]Did you mean: {', '.join(matches[:5])}?[/dim]"
-                    )
+                    self.console.print(f"  [dim]Did you mean: {', '.join(matches[:5])}?[/dim]")
                     files.extend(matches)
                 else:
-                    self.console.print(
-                        f"  [yellow]File not found: {line}[/yellow]"
-                    )
+                    self.console.print(f"  [yellow]File not found: {line}[/yellow]")
 
         return list(set(files))
 
@@ -338,9 +314,7 @@ class UI:
 
         table.add_row("Files processed", str(processed_count))
         table.add_row("Documentation sections", str(sections))
-        table.add_row(
-            "Wires closed (resolved)", f"[green]{wires_closed}[/green]"
-        )
+        table.add_row("Wires closed (resolved)", f"[green]{wires_closed}[/green]")
         table.add_row(
             "Wires open (unresolved)",
             f"[yellow]{wires_open}[/yellow]" if wires_open else "[green]0[/green]",
@@ -350,10 +324,7 @@ class UI:
 
         self.console.print(table)
         self.console.print()
-        self.console.print(
-            f"  [bold green]✓[/bold green] Documentation written to "
-            f"[bold]{output_path}[/bold]"
-        )
+        self.console.print(f"  [bold green]✓[/bold green] Documentation written to [bold]{output_path}[/bold]")
         self.console.print()
         # ── Triage display methods ───────────────────────────────────
 
@@ -362,9 +333,7 @@ class UI:
         self.console.print()
 
         # Project type
-        self.console.print(
-            f"  [cyan]Project type:[/cyan] [bold]{project_type}[/bold]"
-        )
+        self.console.print(f"  [cyan]Project type:[/cyan] [bold]{project_type}[/bold]")
 
         if triage_result.reasoning:
             self.console.print(f"  [dim]{triage_result.reasoning}[/dim]")
@@ -383,16 +352,9 @@ class UI:
                 else:
                     skip_files.append(f)
 
-            self.console.print(
-                f"  [red]SKIP[/red] [dim](generated/platform — "
-                f"{len(triage_result.skip)} files):[/dim]"
-            )
-            for dir_name, count in sorted(
-                skip_dirs.items(), key=lambda x: -x[1]
-            )[:15]:
-                self.console.print(
-                    f"    [dim]✗ {dir_name}[/dim] [dim]({count} files)[/dim]"
-                )
+            self.console.print(f"  [red]SKIP[/red] [dim](generated/platform — {len(triage_result.skip)} files):[/dim]")
+            for dir_name, count in sorted(skip_dirs.items(), key=lambda x: -x[1])[:15]:
+                self.console.print(f"    [dim]✗ {dir_name}[/dim] [dim]({count} files)[/dim]")
             for f in skip_files[:5]:
                 self.console.print(f"    [dim]✗ {f}[/dim]")
             if len(skip_dirs) > 15 or len(skip_files) > 5:
@@ -401,15 +363,12 @@ class UI:
         # Skim summary
         if triage_result.skim:
             self.console.print(
-                f"\n  [yellow]SKIM[/yellow] [dim](config/metadata — "
-                f"{len(triage_result.skim)} files):[/dim]"
+                f"\n  [yellow]SKIM[/yellow] [dim](config/metadata — {len(triage_result.skim)} files):[/dim]"
             )
             for f in triage_result.skim[:10]:
                 self.console.print(f"    [dim]~ {f}[/dim]")
             if len(triage_result.skim) > 10:
-                self.console.print(
-                    f"    [dim]… +{len(triage_result.skim) - 10} more[/dim]"
-                )
+                self.console.print(f"    [dim]… +{len(triage_result.skim) - 10} more[/dim]")
 
         # Core summary
         if triage_result.core:
@@ -422,17 +381,9 @@ class UI:
                 else:
                     core_dirs[f] = 1
 
-            self.console.print(
-                f"\n  [green]CORE[/green] [dim](will document — "
-                f"{len(triage_result.core)} files):[/dim]"
-            )
-            for dir_name, count in sorted(
-                core_dirs.items(), key=lambda x: -x[1]
-            )[:15]:
-                self.console.print(
-                    f"    [green]✓[/green] {dir_name} "
-                    f"[dim]({count} files)[/dim]"
-                )
+            self.console.print(f"\n  [green]CORE[/green] [dim](will document — {len(triage_result.core)} files):[/dim]")
+            for dir_name, count in sorted(core_dirs.items(), key=lambda x: -x[1])[:15]:
+                self.console.print(f"    [green]✓[/green] {dir_name} [dim]({count} files)[/dim]")
             if len(core_dirs) > 15:
                 self.console.print("    [dim]… and more[/dim]")
 
@@ -462,9 +413,7 @@ class UI:
             )
         )
 
-        choice = Prompt.ask(
-            "Choice", choices=["y", "e", "a", "q"], default="y"
-        )
+        choice = Prompt.ask("Choice", choices=["y", "e", "a", "q"], default="y")
         return {
             "y": "proceed",
             "e": "edit",
@@ -479,14 +428,9 @@ class UI:
         self.console.print()
         self.console.print("[bold]Edit file classifications[/bold]")
         self.console.print(
-            "[dim]Commands: "
-            "'core <pattern>' | 'skip <pattern>' | 'skim <pattern>' | "
-            "'list <category>' | 'done'[/dim]"
+            "[dim]Commands: 'core <pattern>' | 'skip <pattern>' | 'skim <pattern>' | 'list <category>' | 'done'[/dim]"
         )
-        self.console.print(
-            "[dim]Patterns: exact path or glob (e.g., 'ios/AppDelegate.swift' "
-            "or 'ios/*.swift')[/dim]"
-        )
+        self.console.print("[dim]Patterns: exact path or glob (e.g., 'ios/AppDelegate.swift' or 'ios/*.swift')[/dim]")
 
         all_files = triage_result.core + triage_result.skim + triage_result.skip
 
@@ -502,9 +446,7 @@ class UI:
                 if parts[0] == "list":
                     self.console.print("[dim]Usage: list core|skim|skip[/dim]")
                     continue
-                self.console.print(
-                    "[dim]Usage: core|skip|skim <pattern> | list <category> | done[/dim]"
-                )
+                self.console.print("[dim]Usage: core|skip|skim <pattern> | list <category> | done[/dim]")
                 continue
 
             action = parts[0].lower()
@@ -541,20 +483,12 @@ class UI:
 
             if action == "core":
                 triage_result.move_to_core(matched)
-                self.console.print(
-                    f"  [green]→ Moved {len(matched)} files to CORE[/green]"
-                )
+                self.console.print(f"  [green]→ Moved {len(matched)} files to CORE[/green]")
             elif action == "skip":
                 triage_result.move_to_skip(matched)
-                self.console.print(
-                    f"  [red]→ Moved {len(matched)} files to SKIP[/red]"
-                )
+                self.console.print(f"  [red]→ Moved {len(matched)} files to SKIP[/red]")
             elif action == "skim":
                 triage_result.move_to_skim(matched)
-                self.console.print(
-                    f"  [yellow]→ Moved {len(matched)} files to SKIM[/yellow]"
-                )
+                self.console.print(f"  [yellow]→ Moved {len(matched)} files to SKIM[/yellow]")
             else:
-                self.console.print(
-                    "[dim]Unknown action. Use: core, skip, skim, list, done[/dim]"
-                )
+                self.console.print("[dim]Unknown action. Use: core, skip, skim, list, done[/dim]")
