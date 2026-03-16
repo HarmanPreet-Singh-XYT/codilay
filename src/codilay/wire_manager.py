@@ -136,17 +136,21 @@ class WireManager:
         updated = 0
 
         for wire in self._open + self._closed:
+            changed = False
             if wire.get("from") == old_path:
                 wire["from"] = new_path
-                updated += 1
+                changed = True
             if wire.get("to") == old_path:
                 wire["to"] = new_path
-                updated += 1
+                changed = True
             if wire.get("opened_at") == old_path:
                 wire["opened_at"] = new_path
-                updated += 1
+                changed = True
             if wire.get("resolved_in") == old_path:
                 wire["resolved_in"] = new_path
+                changed = True
+            
+            if changed:
                 updated += 1
 
         return updated
