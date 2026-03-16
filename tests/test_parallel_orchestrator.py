@@ -1,16 +1,15 @@
 import os
-import tempfile
 import shutil
-import threading
+import tempfile
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 
 from codilay.parallel_orchestrator import (
     ParallelOrchestrator,
-    WorkerResult,
-    TierResult,
     ParkEntry,
+    TierResult,
+    WorkerResult,
 )
 from codilay.state import AgentState
 from codilay.wire_bus import WireBus

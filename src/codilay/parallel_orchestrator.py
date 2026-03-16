@@ -36,9 +36,9 @@ Processing flow:
 import os
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 from codilay.dependency_graph import DependencyGraph
 from codilay.docstore import DocStore
@@ -46,7 +46,6 @@ from codilay.processor import Processor
 from codilay.scanner import Scanner
 from codilay.state import AgentState
 from codilay.wire_bus import WireBus, WireEvent
-from codilay.wire_manager import WireManager
 
 
 @dataclass

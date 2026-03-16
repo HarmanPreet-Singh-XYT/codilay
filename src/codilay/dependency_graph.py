@@ -7,7 +7,7 @@ parallel vs. which must be sequential.
 import os
 import re
 from collections import defaultdict, deque
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 
 class DependencyGraph:

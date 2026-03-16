@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from codilay.wire_bus import WireBus, WireEvent
+from codilay.wire_bus import WireBus
 from codilay.wire_manager import WireManager
 
 
@@ -152,7 +152,7 @@ def test_pending_wire_created_when_target_in_flight(bus):
 
 def test_no_pending_when_target_not_in_flight(bus):
     """Opening a wire to a non-in-flight file should not create pending."""
-    wire = bus.open_wire("src/source.py", "src/target.py", "import")
+    bus.open_wire("src/source.py", "src/target.py", "import")
 
     pending = bus.get_pending_wires()
     assert len(pending) == 0
@@ -197,7 +197,10 @@ def test_subscribe_receives_pending_events(bus):
 
 def test_unsubscribe(bus):
     events = []
-    callback = lambda e: events.append(e)
+
+    def callback(e):
+        events.append(e)
+
     bus.subscribe(callback)
 
     bus.open_wire("src/a.py", "src/b.py", "import")

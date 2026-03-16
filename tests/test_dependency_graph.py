@@ -1,4 +1,4 @@
-from codilay.dependency_graph import DependencyGraph
+from codilay.dependency_graph import DependencyGraph  # noqa: I001
 
 
 # ── Python import extraction ─────────────────────────────────────────────────

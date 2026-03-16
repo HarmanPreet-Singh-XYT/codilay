@@ -34,15 +34,15 @@ from codilay.config import CodiLayConfig
 from codilay.docstore import DocStore
 from codilay.git_tracker import ChangeType, GitTracker
 from codilay.llm_client import ALL_PROVIDERS, LLMClient
+from codilay.parallel_orchestrator import ParallelOrchestrator
 from codilay.planner import Planner
 from codilay.processor import Processor
 from codilay.scanner import Scanner
 from codilay.settings import Settings
 from codilay.state import AgentState
 from codilay.ui import UI
-from codilay.wire_manager import WireManager
 from codilay.wire_bus import WireBus
-from codilay.parallel_orchestrator import ParallelOrchestrator
+from codilay.wire_manager import WireManager
 
 console = Console()
 
