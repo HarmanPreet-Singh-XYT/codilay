@@ -12,11 +12,11 @@ automatically re-runs the documentation pipeline on affected files.
 
 import fnmatch
 import os
-import sys
+
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional
 
 from rich.console import Console
 from rich.panel import Panel

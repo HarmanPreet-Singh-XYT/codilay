@@ -2462,7 +2462,7 @@ def team_vote(target, fact_id, direction):
     if tm.vote_fact(full_id, direction):
         console.print(f"[green]Voted {direction} on fact {fact_id[:8]}[/green]")
     else:
-        console.print(f"[red]Could not vote on fact[/red]")
+        console.print("[red]Could not vote on fact[/red]")
 
 
 @team_group.command("decisions")
@@ -2579,7 +2579,7 @@ def team_annotate(target, file_path, note, author, lines):
     from codilay.team_memory import TeamMemory
 
     tm = TeamMemory(output_dir)
-    entry = tm.add_annotation(file_path, note, author=author, line_range=lines)
+    tm.add_annotation(file_path, note, author=author, line_range=lines)
     console.print(f"[green]Annotation added for [cyan]{file_path}[/cyan][/green]")
 
 
@@ -2785,7 +2785,7 @@ def schedule_status(target):
         return
 
     mode = cfg.get("mode", "disabled")
-    console.print(f"[bold]Schedule:[/bold] [green]enabled[/green]")
+    console.print("[bold]Schedule:[/bold] [green]enabled[/green]")
     console.print(f"  Mode: [cyan]{mode}[/cyan]")
     if mode == "cron":
         console.print(f"  Expression: [cyan]{cfg.get('cron', '')}[/cyan]")
@@ -2800,7 +2800,7 @@ def schedule_status(target):
     if pid:
         console.print(f"  Scheduler PID: [cyan]{pid}[/cyan] [green](running)[/green]")
     else:
-        console.print(f"  Scheduler: [yellow]not running[/yellow]")
+        console.print("  Scheduler: [yellow]not running[/yellow]")
 
 
 @schedule_group.command("start")

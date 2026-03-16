@@ -7,7 +7,7 @@ Used by both the CLI `codilay graph` command and the web UI's graph view.
 
 import fnmatch
 import os
-import re
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 

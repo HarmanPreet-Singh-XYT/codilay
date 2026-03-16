@@ -15,13 +15,13 @@ No external scheduler dependencies required — just threading and git polling.
 
 import json
 import os
-import signal
+
 import subprocess
 import sys
-import threading
+
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 
@@ -308,7 +308,7 @@ class Scheduler:
             )
 
             if result.returncode == 0:
-                self.console.print(f"  [green]Update completed successfully.[/green]")
+                self.console.print("  [green]Update completed successfully.[/green]")
                 self._config.record_run()
             else:
                 self.console.print(f"  [red]Update failed (exit code {result.returncode})[/red]")
