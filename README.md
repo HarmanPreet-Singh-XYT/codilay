@@ -292,12 +292,53 @@ Place a `codilay.config.json` in your root for project-specific behavior:
   "ignore": ["dist/**", "**/tests/**"],
   "notes": "This is a React/Next.js frontend using Tailwind.",
   "instructions": "Focus on data-fetching patterns and state management.",
+  "entryHint": "src/main.py",
   "llm": {
     "provider": "anthropic",
-    "model": "claude-3-5-sonnet-latest"
+    "model": "claude-3-5-sonnet-latest",
+    "baseUrl": "https://api.anthropic.com",
+    "maxTokensPerCall": 4096
+  },
+  "triage": {
+    "mode": "smart",
+    "includeTests": false,
+    "forceInclude": ["critical_logic/*.py"],
+    "forceSkip": ["legacy_v1/*.js"]
+  },
+  "chunking": {
+    "tokenThreshold": 6000,
+    "maxChunkTokens": 4000,
+    "overlapRatio": 0.10
+  },
+  "parallel": {
+    "enabled": true,
+    "maxWorkers": 4
   }
 }
 ```
+
+### 📋 Configuration Fields
+
+| Category | Key | Type | Description |
+|:---|:---|:---|:---|
+| **General** | `ignore` | `List[str]` | Glob patterns for files/folders to exclude from scans. |
+| | `notes` | `str` | High-level project context provided to the AI. |
+| | `instructions` | `str` | Specific documentation style or domain instructions. |
+| | `entryHint` | `str` | Point to the main entry file to help trace wires. |
+| | `skipGenerated` | `List[str]` | Optional override for default generated/lock file ignores. |
+| **LLM** | `provider` | `str` | AI provider (e.g., `anthropic`, `openai`, `google`, `ollama`). |
+| | `model` | `str` | Model identifier (e.g., `claude-3-5-sonnet-latest`). |
+| | `baseUrl` | `str` | Custom API base URL (useful for local models or proxies). |
+| | `maxTokensPerCall`| `int` | Maximum output tokens per individual agent call. |
+| **Triage** | `mode` | `str` | Default classification strategy (`smart`, `core`, `skim`, `skip`). |
+| | `includeTests` | `bool` | Whether to process test files (defaults to `false`). |
+| | `forceInclude` | `List[str]` | Patterns to always treat as **Core** documentation. |
+| | `forceSkip` | `List[str]` | Patterns to always ignore. |
+| **Chunking** | `tokenThreshold` | `int` | Files larger than this (in tokens) are split into chunks. |
+| | `maxChunkTokens` | `int` | Target token count for each detail chunk. |
+| | `overlapRatio` | `float` | Contextual overlap between chunks (e.g. `0.10` for 10%). |
+| **Parallel** | `enabled` | `bool` | Enable/disable concurrent processing of files within the same tier. |
+| | `maxWorkers` | `int` | Max number of concurrent LLM calls. |
 
 ### 🌍 Multi-Provider Support
 CodiLay is provider-agnostic. Power it with:
