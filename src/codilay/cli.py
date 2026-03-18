@@ -1508,6 +1508,15 @@ def interactive(ctx):
             "  [bold]codilay triage-feedback hint " + result["target"] + " <file>[/bold]\n"
         )
 
+    elif result and result.get("action") == "audit":
+        ctx.invoke(
+            audit_command,
+            target=result["target"],
+            audit_type=result["type"],
+            mode=result["mode"]
+        )
+
+
 
 # ─── Setup wizard ─────────────────────────────────────────────────────────────
 
@@ -2273,7 +2282,7 @@ def export_cmd(
         try:
             settings = Settings.load()
             custom_presets = getattr(settings, "export_presets", None)
-        except:
+        except Exception:
             custom_presets = None
 
         show_presets(custom_presets)
@@ -2284,8 +2293,8 @@ def export_cmd(
 
     if interactive:
         # Interactive mode - LLM conversation
-        from codilay.interactive_export import interactive_export_flow
         from codilay.config import CodiLayConfig
+        from codilay.interactive_export import interactive_export_flow
         from codilay.llm_client import LLMClient
         from codilay.settings import Settings
 
@@ -2310,13 +2319,14 @@ def export_cmd(
 
     elif query:
         # Query mode - LLM translates query to spec
-        from codilay.interactive_export import query_llm_for_spec, estimate_tokens
-        from codilay.exporter import AIExporter
-        from codilay.state import AgentState
+        import json as json_lib
+
         from codilay.config import CodiLayConfig
+        from codilay.exporter import AIExporter
+        from codilay.interactive_export import estimate_tokens, query_llm_for_spec
         from codilay.llm_client import LLMClient
         from codilay.settings import Settings
-        import json as json_lib
+        from codilay.state import AgentState
 
         try:
             settings = Settings.load()
@@ -2377,7 +2387,7 @@ def export_cmd(
         try:
             settings = Settings.load()
             custom_presets = getattr(settings, "export_presets", None)
-        except:
+        except Exception:
             custom_presets = None
 
         spec = get_preset(preset, custom_presets)
@@ -2389,9 +2399,10 @@ def export_cmd(
         console.print(f"[green]Using preset:[/green] {spec.summary}")
 
     # Export using spec or traditional parameters
-    from codilay.exporter import export_for_ai, AIExporter
-    from codilay.state import AgentState
     import json as json_lib
+
+    from codilay.exporter import AIExporter, export_for_ai
+    from codilay.state import AgentState
 
     try:
         if spec:
@@ -3509,3 +3520,58 @@ def schedule_stop(target):
         console.print(f"[yellow]Scheduler (PID {pid}) was not running. Cleaned up PID file.[/yellow]")
     except PermissionError:
         console.print(f"[red]Permission denied sending signal to PID {pid}.[/red]")
+
+@cli.command("audit")
+@click.argument("target", default=".", type=click.Path(exists=True))
+@click.option(
+    "--type", "-t", "audit_type", required=True, help="Type of audit (e.g. security, performance, architecture)"
+)
+@click.option(
+    "--mode", "-m", type=click.Choice(["passive", "active"]), default="passive", help="Audit mode: passive or active"
+)
+@click.pass_context
+def audit_command(ctx, target, audit_type, mode):
+    """Run an AI audit against the generated CodiLay documentation."""
+    target = os.path.abspath(target)
+    output_dir = ctx.obj.get("output", os.path.join(target, "codilay"))
+    config_path = ctx.obj.get("config_path")
+
+    settings = ctx.obj.get("settings", Settings.load())
+    cfg = CodiLayConfig.load(target, config_path)
+
+    from codilay.audit_manager import AuditManager
+    from codilay.ui import UI
+
+    ui = UI(console, False)
+    ui.phase(f"Running {audit_type.upper()} Audit in {mode.upper()} mode")
+
+    # Load state
+    state_path = os.path.join(output_dir, ".codilay_state.json")
+    if not os.path.exists(state_path):
+        ui.error("No CodiLay state found. Please run 'codilay .' first.")
+        return
+
+    state = AgentState.load(state_path)
+
+    # Set up LLM
+    from codilay.llm_client import LLMClient
+    llm = LLMClient(cfg)
+
+    scanner = None
+    if mode == "active":
+        scanner = Scanner(target, cfg, output_dir=output_dir)
+
+    audit_mgr = AuditManager(llm_client=llm, output_dir=output_dir)
+
+    with ui.spinner("Auditing codebase..."):
+        result = audit_mgr.run_audit(
+            audit_type=audit_type,
+            mode=mode,
+            section_contents=state.section_contents,
+            open_wires=state.open_wires,
+            closed_wires=state.closed_wires,
+            target_path=target,
+            scanner=scanner
+        )
+
+    ui.success(f"Audit complete! Report saved to {result['report_path']}")

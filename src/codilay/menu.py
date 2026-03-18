@@ -1203,6 +1203,7 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
         menu.add_row("[7]", "🔀  Graph filters — filter dependency graph")
         menu.add_row("[8]", "🧠  Team memory — shared facts & decisions")
         menu.add_row("[9]", "📊  Triage feedback — improve triage accuracy")
+        menu.add_row("[10]", "🛡️   Audit system — security, performance, architecture")
         menu.add_row("[0]", "← Back to main menu")
 
         console.print(menu)
@@ -1210,7 +1211,7 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
 
         choice = Prompt.ask(
             "[bold cyan]Select a tool[/bold cyan]",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
             default="0",
         )
 
@@ -1262,6 +1263,10 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
             if result:
                 return result
 
+        elif choice == "10":
+            result = _menu_tool_audit(settings)
+            if result:
+                return result
 
 def _prompt_target_path(label: str = "Path to codebase") -> Optional[str]:
     """Prompt for a target path with validation. Returns None on cancel."""
@@ -1298,6 +1303,37 @@ def _menu_tool_watch(settings: Settings) -> Optional[dict]:
         return None
 
     return {"action": "watch", "target": target}
+
+
+def _menu_tool_audit(settings: Settings) -> Optional[dict]:
+    """Launch the audit system."""
+    _clear()
+    _header("Audit System")
+    _back_hint()
+
+    console.print(
+        Panel(
+            "The Audit system evaluates the CodiLay wire graph and doc context\n"
+            "for security vulnerabilities, performance bottlenecks, architecture flaws,\n"
+            "and more. Passive mode is fast. Active mode reads specific files deeply.",
+            border_style="cyan",
+        )
+    )
+    console.print()
+
+    target = _prompt_target_path()
+    if not target:
+        return None
+
+    audit_type = Prompt.ask("Audit type (e.g. security, performance, code_quality, architecture)", default="security")
+    if _is_back(audit_type):
+        return None
+
+    mode = Prompt.ask("Mode (passive / active)", choices=["passive", "active"], default="passive")
+    if _is_back(mode):
+        return None
+
+    return {"action": "audit", "target": target, "type": audit_type, "mode": mode}
 
 
 def _menu_tool_export(settings: Settings) -> Optional[dict]:

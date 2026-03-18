@@ -1,0 +1,32 @@
+{
+  "id": "f78c75710937",
+  "title": "hey",
+  "created_at": "2026-03-18T05:17:34.107637+00:00",
+  "updated_at": "2026-03-18T05:17:34.129658+00:00",
+  "messages": [
+    {
+      "id": "38d2ab84be2a",
+      "role": "user",
+      "content": "hey",
+      "sources": [],
+      "confidence": null,
+      "escalated": false,
+      "pinned": false,
+      "parent_id": null,
+      "created_at": "2026-03-18T05:17:34.108779+00:00"
+    },
+    {
+      "id": "e8674895e4c0",
+      "role": "assistant",
+      "content": "I couldn't find relevant source files to answer this question. Try rephrasing with specific file names or module names.",
+      "sources": [],
+      "confidence": 1.0,
+      "escalated": true,
+      "pinned": false,
+      "parent_id": null,
+      "created_at": "2026-03-18T05:17:34.129476+00:00"
+    }
+  ],
+  "parent_conv_id": null,
+  "branch_point_msg_id": null
+}

@@ -346,7 +346,14 @@ class LLMClient:
             text = text[3:]
         if text.endswith("```"):
             text = text[:-3]
-        return json.loads(text.strip())
+
+        parsed = json.loads(text.strip())
+        if isinstance(parsed, dict):
+            return parsed
+        elif isinstance(parsed, list):
+            return {"error": "LLM returned a list instead of an object", "raw_list": parsed}
+        else:
+            return {"error": "LLM returned non-object JSON", "raw_value": parsed}
 
     def _salvage_json(self, text: str) -> Dict[str, Any]:
         text = text.strip()
@@ -354,7 +361,11 @@ class LLMClient:
         end = text.rfind("}")
         if start != -1 and end != -1 and end > start:
             try:
-                return json.loads(text[start : end + 1])
+                parsed = json.loads(text[start : end + 1])
+                if isinstance(parsed, dict):
+                    return parsed
+                elif isinstance(parsed, list):
+                    return {"error": "LLM returned a list instead of an object (salvaged)", "raw_list": parsed}
             except json.JSONDecodeError:
                 pass
         return {"error": "Failed to parse LLM response", "raw_response": text[:500]}

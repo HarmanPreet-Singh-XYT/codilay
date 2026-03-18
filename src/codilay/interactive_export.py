@@ -29,7 +29,6 @@ from rich.table import Table
 from codilay.export_spec import BUILTIN_PRESETS, ExportSpec, get_preset, list_presets
 from codilay.llm_client import LLMClient
 
-
 console = Console()
 
 

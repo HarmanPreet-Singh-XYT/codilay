@@ -1675,3 +1675,700 @@ body {
     margin: 0 auto;
     line-height: 1.5;
 }
+/* ── Audit Findings Styling ─────────────────────── */
+.finding-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    animation: finding-slide-in 0.3s ease-out both;
+}
+
+@keyframes finding-slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.finding-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
+}
+
+.finding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    gap: 16px;
+}
+
+.finding-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.severity-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.severity-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.05em;
+}
+
+.severity-badge.high { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+.severity-badge.medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+.severity-badge.low { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2); }
+
+.finding-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.meta-item .lucide {
+    width: 14px;
+    height: 14px;
+}
+
+.meta-label {
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.meta-value {
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    cursor: pointer;
+}
+
+.meta-value:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.finding-section {
+    margin-bottom: 20px;
+}
+
+.finding-section:last-child {
+    margin-bottom: 0;
+}
+
+.finding-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.finding-section-content {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.fix-box {
+    background: rgba(34, 197, 94, 0.05);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 10px;
+}
+
+.fix-box .finding-section-title {
+    color: var(--green);
+}
+
+.fix-box .finding-section-content {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+/* ── Audit Dashboard ───────────────────────────── */
+.audit-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.audit-stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.2s;
+}
+
+.audit-stat-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+}
+
+.audit-stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.audit-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.audit-stat-card.high .audit-stat-value { color: var(--red); }
+.audit-stat-card.medium .audit-stat-value { color: var(--orange); }
+.audit-stat-card.low .audit-stat-value { color: var(--accent); }
+
+/* ── Audit Filters ─────────────────────────────── */
+.audit-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+
+.audit-filter-btn {
+    padding: 6px 16px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.audit-filter-btn:hover {
+    border-color: var(--border-focus);
+    color: var(--text);
+}
+
+.audit-filter-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* ── Refined Finding Card ───────────────────────── */
+.finding-card {
+    border-left: 4px solid transparent;
+}
+
+.finding-card[data-severity="HIGH"] { border-left-color: var(--red); }
+.finding-card[data-severity="MEDIUM"] { border-left-color: var(--orange); }
+.finding-card[data-severity="LOW"] { border-left-color: var(--accent); }
+
+.finding-expand-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+
+.finding-expand-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text);
+}
+
+.finding-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.finding-card.expanded .finding-details {
+    max-height: 2000px;
+}
+
+/* ── MODERN AUDIT UI OVERHAUL ────────────────────── */
+
+/* Dashboard Enhancements */
+.audit-dashboard {
+    gap: 20px;
+}
+
+.audit-stat-card {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(24, 24, 27, 0.8) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.audit-stat-card::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.audit-stat-label {
+    letter-spacing: 0.1em;
+    font-size: 10px;
+}
+
+.audit-stat-value {
+    font-family: 'Outfit', sans-serif;
+    background: linear-gradient(to bottom, #fff, #999);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.audit-stat-card.high .audit-stat-value { background: linear-gradient(to bottom, #ff4d4d, #990000); -webkit-background-clip: text; }
+.audit-stat-card.medium .audit-stat-value { background: linear-gradient(to bottom, #ffad33, #996600); -webkit-background-clip: text; }
+.audit-stat-card.low .audit-stat-value { background: linear-gradient(to bottom, #3399ff, #0044cc); -webkit-background-clip: text; }
+
+/* Filter Buttons - Modern Pill Style */
+.audit-filters {
+    padding: 4px;
+    background: var(--bg-secondary);
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    width: fit-content;
+    margin: 0 auto 32px;
+}
+
+.audit-filter-btn {
+    padding: 8px 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 100px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.audit-filter-btn:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+}
+
+.audit-filter-btn.active {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    transform: scale(1.05);
+}
+
+/* Finding Cards - Glassmorphism & Depth */
+.finding-card {
+    background: rgba(24, 24, 27, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 4px solid var(--accent);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    margin-bottom: 16px;
+    cursor: pointer;
+}
+
+.finding-card:hover {
+    background: rgba(39, 39, 42, 0.8);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.finding-card.expanded {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.finding-header {
+    padding: 20px 24px;
+    margin-bottom: 0;
+    align-items: center;
+}
+
+.expand-icon {
+    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    color: var(--text-muted);
+}
+
+.finding-card.expanded .expand-icon {
+    transform: rotate(180deg);
+    color: var(--accent);
+}
+
+.finding-details {
+    padding: 0 24px 24px;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.4s ease;
+}
+
+.finding-card.expanded .finding-details {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.severity-badge {
+    padding: 2px 10px;
+    font-size: 9px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Sections Internal UI */
+.finding-section-title {
+    color: var(--accent);
+    opacity: 0.8;
+}
+
+.finding-section-content {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.03);
+}
+
+.fix-box {
+    border-left: 4px solid var(--green);
+    background: rgba(34, 197, 94, 0.03);
+}
+
+/* ── Final Polish for Audit UI ──────────────────── */
+
+.audit-beautified {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.audit-stat-card {
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(20px);
+}
+
+.audit-filter-btn {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+}
+
+.finding-card-wrapper {
+    margin-bottom: 12px;
+}
+
+.finding-card {
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(24, 24, 27, 0.4);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.finding-card:hover {
+    background: rgba(24, 24, 27, 0.8);
+    transform: translateY(-4px) scale(1.01);
+}
+
+.finding-header {
+    cursor: pointer;
+    user-select: none;
+    padding: 18px 24px;
+}
+
+.finding-title {
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.expand-icon {
+    opacity: 0.5;
+    transition: all 0.4s ease;
+    display: inline-block;
+}
+
+.finding-card.expanded {
+    background: rgba(24, 24, 27, 0.95);
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 32px 64px rgba(0,0,0,0.5);
+    transform: scale(1.02);
+    z-index: 10;
+}
+
+.finding-card.expanded .expand-icon {
+    opacity: 1;
+}
+
+.meta-value {
+    background: rgba(255,255,255,0.03);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.finding-meta {
+    background: transparent;
+    border: none;
+}
+
+.meta-label {
+    opacity: 0.5;
+    font-size: 9px;
+}
+
+/* Animations */
+@keyframes dashboardFadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.audit-dashboard {
+    animation: dashboardFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Light Mode Fixes for Audit UI ──────────────── */
+
+/* Variables override if needed for light mode (assuming a .light-mode class exists) */
+body.light-mode .audit-stat-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f4f4f5 100%);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+body.light-mode .audit-stat-value {
+    background: linear-gradient(to bottom, #18181b, #71717a);
+    -webkit-background-clip: text;
+}
+
+body.light-mode .audit-stat-card.high .audit-stat-value { background: linear-gradient(to bottom, #ef4444, #991b1b); -webkit-background-clip: text; }
+body.light-mode .audit-stat-card.medium .audit-stat-value { background: linear-gradient(to bottom, #f59e0b, #92400e); -webkit-background-clip: text; }
+body.light-mode .audit-stat-card.low .audit-stat-value { background: linear-gradient(to bottom, #3b82f6, #1e40af); -webkit-background-clip: text; }
+
+body.light-mode .finding-card {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+body.light-mode .finding-card:hover {
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+body.light-mode .finding-card.expanded {
+    background: #ffffff;
+    border-color: var(--accent);
+}
+
+body.light-mode .finding-section-content {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+body.light-mode .meta-value {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+}
+
+body.light-mode .audit-filters {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+}
+
+body.light-mode .audit-filter-btn:hover {
+    background: rgba(0,0,0,0.03);
+}
+
+/* Ensure CSS variables are used in main audit styles for better theme support */
+.finding-card {
+    background: var(--bg-secondary);
+    color: var(--text);
+}
+
+.finding-title {
+    color: var(--text);
+}
+
+.finding-section-title {
+    color: var(--text-muted);
+}
+
+/* ── Light Mode Specific Polish ────────────────── */
+body.light-mode {
+    --bg: #ffffff;
+    --bg-secondary: #f4f4f5;
+    --border: #e4e4e7;
+    --text: #18181b;
+    --text-muted: #71717a;
+}
+
+body.light-mode .finding-card {
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    color: #18181b;
+}
+
+body.light-mode .finding-card:hover {
+    background: #fafafa;
+    border-color: var(--accent);
+}
+
+body.light-mode .finding-card.expanded {
+    background: #ffffff !important;
+    border-color: var(--accent);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-mode .finding-title {
+    color: #18181b !important;
+}
+
+body.light-mode .finding-section-title {
+    color: var(--accent);
+}
+
+body.light-mode .finding-section-content {
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+body.light-mode .meta-value {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+body.light-mode .expand-icon {
+    color: #71717a !important;
+}
+
+body.light-mode .finding-card.expanded .expand-icon {
+    color: var(--accent) !important;
+}
+
+body.light-mode .fix-box {
+    background: rgba(34, 197, 94, 0.05) !important;
+    border-left: 4px solid #22c55e !important;
+}
+
+/* ── Final Theme Compatibility Fixes (data-theme="light") ── */
+[data-theme="light"] {
+    --bg-secondary: #f4f4f5;
+    --text: #18181b;
+}
+
+[data-theme="light"] .finding-card {
+    background: #ffffff !important;
+    border: 1px solid #e4e4e7 !important;
+    color: #18181b !important;
+}
+
+[data-theme="light"] .finding-card.expanded {
+    background: #ffffff !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-theme="light"] .finding-title {
+    color: #111827 !important;
+}
+
+[data-theme="light"] .finding-section-content {
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .meta-value {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+}
+
+[data-theme="light"] .audit-stat-card {
+    background: #ffffff !important;
+    border: 1px solid #e4e4e7 !important;
+}
+
+[data-theme="light"] .audit-stat-value {
+    color: #18181b !important;
+    -webkit-text-fill-color: #18181b !important;
+}
+
+[data-theme="light"] .audit-filter-btn {
+    color: #71717a !important;
+}
+
+[data-theme="light"] .audit-filter-btn.active {
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .expand-icon {
+    color: #9ca3af !important;
+}

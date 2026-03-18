@@ -3,11 +3,11 @@
 import os
 import tempfile
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from codilay.diff_analyzer import DiffAnalyzer, DiffAnalysisResult
+from codilay.diff_analyzer import DiffAnalysisResult, DiffAnalyzer
 
 
 class TestDiffAnalyzerBoundaryResolution:

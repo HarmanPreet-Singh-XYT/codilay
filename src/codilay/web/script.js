@@ -1222,6 +1222,333 @@ async function teamAddUser() {
     } catch (e) { console.error(e); }
 }
 
+// ── Audit view ───────────────────────────────────────────────────────────────
+async function renderAuditView() {
+    const container = document.getElementById('main-content');
+    container.innerHTML = `
+    <div style="padding: 32px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 24px;">
+            <div>
+                <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;">System Audit</h2>
+                <p style="color:var(--text-muted);font-size:13px;max-width:600px;">
+                    Run AI-powered audits against your architecture. Passive mode uses existing context (fast). Active mode deeply inspects files (thorough).
+                </p>
+            </div>
+            <div style="display:flex; gap:12px; background:var(--bg-secondary); padding:16px; border-radius:8px; border:1px solid var(--border);">
+                <div>
+                    <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Audit Type</label>
+                    <select id="audit-type-select" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+                        <option value="security">Security</option>
+                        <option value="performance">Performance</option>
+                        <option value="architecture">Architecture</option>
+                        <option value="code_quality">Code Quality</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Mode</label>
+                    <select id="audit-mode-select" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+                        <option value="passive">Passive (Fast)</option>
+                        <option value="active">Active (Deep)</option>
+                    </select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button class="tool-btn primary" onclick="runAudit()"><i data-lucide="play" style="width:14px;height:14px;"></i> Run Audit</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="audit-history-container" style="margin-bottom: 32px;">
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">Past Audits</h3>
+            <div id="audit-history-list">Loading history...</div>
+        </div>
+
+        <div id="audit-results-container" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+            <div style="padding:16px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                <h3 id="audit-results-title" style="font-size:14px;font-weight:600;">Audit Results</h3>
+            </div>
+            <div id="audit-results-content" style="padding:24px;font-size:13px;line-height:1.6;overflow:auto;"></div>
+        </div>
+    </div>
+    `;
+    updateIcons();
+    loadAuditHistory();
+}
+
+async function loadAuditHistory() {
+    const listEl = document.getElementById('audit-history-list');
+    try {
+        const res = await fetch('/api/audits');
+        if (!res.ok) throw new Error('Failed to load audits');
+        const data = await res.json();
+        const runs = data.runs || [];
+
+        if (runs.length === 0) {
+            listEl.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:16px;background:var(--bg-secondary);border-radius:6px;border:1px dashed var(--border);">No past audits found. Run one above to get started.</div>';
+            return;
+        }
+
+        let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px;">';
+        runs.slice().reverse().forEach((run, i) => {
+            const date = new Date(run.date).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            html += `
+            <div class="tool-card" style="cursor:pointer;" onclick="viewAuditReport('${escAttr(run.report_file)}')">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-weight:600;capitalize;">${escHtml(run.type)}</span>
+                    <span style="font-size:11px;color:var(--text-muted);background:var(--bg);padding:2px 6px;border-radius:4px;">${escHtml(run.mode)}</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);"><i data-lucide="calendar" style="width:12px;height:12px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i>${escHtml(date)}</div>
+            </div>`;
+        });
+        html += '</div>';
+        listEl.innerHTML = html;
+        updateIcons();
+    } catch(e) {
+        listEl.innerHTML = `<span style="color:var(--red);">${escHtml(e.message)}</span>`;
+    }
+}
+
+async function runAudit() {
+    const type = document.getElementById('audit-type-select').value;
+    const mode = document.getElementById('audit-mode-select').value;
+    
+    const resEl = document.getElementById('audit-results-container');
+    const contentEl = document.getElementById('audit-results-content');
+    const titleEl = document.getElementById('audit-results-title');
+    
+    resEl.style.display = 'block';
+    titleEl.innerHTML = `Running ${type.toUpperCase()} Audit...`;
+    contentEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;color:var(--accent);">
+            <div class="spinner" style="border-right-color:var(--accent);width:20px;height:20px;"></div>
+            <span>Analyzing architecture, code, and wires. This may take a moment.</span>
+        </div>
+    `;
+
+    try {
+        const res = await fetch('/api/audits', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ audit_type: type, mode: mode })
+        });
+        if (!res.ok) throw new Error('Audit failed');
+        const data = await res.json();
+        
+        titleEl.textContent = `${type.toUpperCase()} Audit Complete`;
+        contentEl.innerHTML = renderAuditFindings(data.response);
+        updateIcons();
+        loadAuditHistory(); // Refresh list
+    } catch(e) {
+        contentEl.innerHTML = `<div style="color:var(--red);">${escHtml(e.message)}</div>`;
+    }
+}
+
+async function viewAuditReport(filename) {
+    const resEl = document.getElementById('audit-results-container');
+    const contentEl = document.getElementById('audit-results-content');
+    const titleEl = document.getElementById('audit-results-title');
+    
+    resEl.style.display = 'block';
+    titleEl.textContent = `Loading...`;
+    contentEl.innerHTML = `<div class="spinner"></div>`;
+    
+    try {
+        const res = await fetch(`/api/audits/${filename}`);
+        if (!res.ok) throw new Error('Failed to load report');
+        const data = await res.json();
+        
+        titleEl.textContent = filename;
+        contentEl.innerHTML = renderAuditFindings(data.content);
+        updateIcons();
+    } catch(e) {
+        contentEl.innerHTML = `<div style="color:var(--red);">${escHtml(e.message)}</div>`;
+    }
+}
+
+function renderAuditFindings(markdown) {
+    if (!markdown) return '';
+    
+    const blocks = markdown.split(/\n?(?=FINDING:)/g);
+    if (blocks.length <= 1 && !markdown.includes('FINDING:')) {
+        return renderMarkdown(markdown);
+    }
+    
+    let findings = [];
+    let headerHtml = '';
+    
+    if (blocks[0] && !blocks[0].trim().startsWith('FINDING:')) {
+        headerHtml = `<div style="margin-bottom: 24px; color: var(--text-muted); font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">${renderMarkdown(blocks[0])}</div>`;
+        blocks.shift();
+    }
+    
+    blocks.forEach(block => {
+        const lines = block.split('\n');
+        let finding = { title: '', severity: 'LOW', file: '', wire: '', evidence: '', impact: '', fix: '' };
+        let currentField = '';
+        
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('FINDING:')) {
+                finding.title = trimmed.replace('FINDING:', '').trim();
+                currentField = 'title';
+            } else if (trimmed.startsWith('Severity:')) {
+                finding.severity = trimmed.replace('Severity:', '').trim().toUpperCase();
+                currentField = 'severity';
+            } else if (trimmed.startsWith('File:')) {
+                finding.file = trimmed.replace('File:', '').trim();
+                currentField = 'file';
+            } else if (trimmed.startsWith('Wire:')) {
+                finding.wire = trimmed.replace('Wire:', '').trim();
+                currentField = 'wire';
+            } else if (trimmed.startsWith('Evidence:')) {
+                finding.evidence = trimmed.replace('Evidence:', '').trim();
+                currentField = 'evidence';
+            } else if (trimmed.startsWith('Impact:')) {
+                finding.impact = trimmed.replace('Impact:', '').trim();
+                currentField = 'impact';
+            } else if (trimmed.startsWith('Fix:')) {
+                finding.fix = trimmed.replace('Fix:', '').trim();
+                currentField = 'fix';
+            } else if (currentField && trimmed) {
+                finding[currentField] += ' ' + trimmed;
+            }
+        });
+        if (finding.title) findings.push(finding);
+    });
+
+    const stats = {
+        total: findings.length,
+        high: findings.filter(f => f.severity.includes('HIGH')).length,
+        medium: findings.filter(f => f.severity.includes('MEDIUM')).length,
+        low: findings.filter(f => f.severity.includes('LOW')).length
+    };
+
+    let html = `
+    <div class="audit-beautified">
+        <div class="audit-dashboard">
+            <div class="audit-stat-card">
+                <span class="audit-stat-label">Total Findings</span>
+                <span class="audit-stat-value">${stats.total}</span>
+            </div>
+            <div class="audit-stat-card high">
+                <span class="audit-stat-label">High Severity</span>
+                <span class="audit-stat-value">${stats.high}</span>
+            </div>
+            <div class="audit-stat-card medium">
+                <span class="audit-stat-label">Medium Severity</span>
+                <span class="audit-stat-value">${stats.medium}</span>
+            </div>
+            <div class="audit-stat-card low">
+                <span class="audit-stat-label">Low Severity</span>
+                <span class="audit-stat-value">${stats.low}</span>
+            </div>
+        </div>
+
+        <div class="audit-filters">
+            <button class="audit-filter-btn active" onclick="filterAuditFindings(this, 'ALL')">All</button>
+            <button class="audit-filter-btn" onclick="filterAuditFindings(this, 'HIGH')">High Severity</button>
+            <button class="audit-filter-btn" onclick="filterAuditFindings(this, 'MEDIUM')">Medium Severity</button>
+            <button class="audit-filter-btn" onclick="filterAuditFindings(this, 'LOW')">Low Severity</button>
+        </div>
+
+        ${headerHtml}
+
+        <div id="audit-findings-list">
+    `;
+
+    findings.forEach((finding, idx) => {
+        const sevClass = finding.severity.toLowerCase().includes('high') ? 'high' : 
+                         finding.severity.toLowerCase().includes('medium') ? 'medium' : 'low';
+        
+        html += `
+        <div class="finding-card-wrapper" data-severity="${finding.severity}">
+            <div class="finding-card" data-severity="${finding.severity}">
+                <div class="finding-header" onclick="toggleFindingCard(this.closest('.finding-card'))">
+                    <div style="flex:1; pointer-events:none;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                            <span class="severity-badge ${sevClass}">${finding.severity}</span>
+                            <span style="font-size:11px; color:var(--text-muted); opacity:0.6;">${escHtml(finding.file)}</span>
+                        </div>
+                        <h4 class="finding-title">${escHtml(finding.title)}</h4>
+                    </div>
+                    <i data-lucide="chevron-down" class="expand-icon" style="width:20px;height:20px;"></i>
+                </div>
+                
+                <div class="finding-details">
+                    <div class="finding-meta" style="margin-top:16px;">
+                        <div class="meta-item" style="cursor:default">
+                            <div style="flex:1">
+                                <span class="meta-label">Source File</span>
+                                <span class="meta-value" onclick="openFile('${escAttr(finding.file)}')"><i data-lucide="file-text" style="width:12px;height:12px"></i> ${escHtml(finding.file)}</span>
+                            </div>
+                        </div>
+                        ${finding.wire ? `
+                        <div class="meta-item" style="cursor:default">
+                            <div style="flex:1">
+                                <span class="meta-label">Architectural Context</span>
+                                <span class="meta-value" onclick="scrollToSection('${escAttr(finding.wire)}')"><i data-lucide="network" style="width:12px;height:12px"></i> ${escHtml(finding.wire)}</span>
+                            </div>
+                        </div>` : ''}
+                    </div>
+                    
+                    <div class="finding-section">
+                        <div class="finding-section-title"><i data-lucide="search" style="width:14px;height:14px;"></i> Evidence & Observations</div>
+                        <div class="finding-section-content">${renderMarkdown(finding.evidence)}</div>
+                    </div>
+                    
+                    ${finding.impact ? `
+                    <div class="finding-section">
+                        <div class="finding-section-title"><i data-lucide="activity" style="width:14px;height:14px;"></i> System Impact</div>
+                        <div class="finding-section-content">${renderMarkdown(finding.impact)}</div>
+                    </div>` : ''}
+                    
+                    ${finding.fix ? `
+                    <div class="fix-box">
+                        <div class="finding-section-title"><i data-lucide="check-circle" style="width:14px;height:14px;"></i> Recommended Fix</div>
+                        <div class="finding-section-content">${renderMarkdown(finding.fix)}</div>
+                    </div>` : ''}
+                    <div style="height:12px;"></div>
+                </div>
+            </div>
+        </div>
+        `;
+    });
+
+    html += `</div></div>`;
+    return html;
+}
+
+function toggleFindingCard(card) {
+    if (!card) return;
+    card.classList.toggle('expanded');
+    // Rotation is handled by CSS for more reliable performance
+}
+
+function filterAuditFindings(btn, severity) {
+    if (!btn) return;
+    document.querySelectorAll('.audit-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const wrapper = document.getElementById('audit-findings-list');
+    if (!wrapper) return;
+    
+    const cards = wrapper.querySelectorAll('.finding-card-wrapper');
+    cards.forEach(card => {
+        if (severity === 'ALL') {
+            card.style.display = 'block';
+        } else {
+            const cardSev = card.dataset.severity || '';
+            if (cardSev.toUpperCase().includes(severity.toUpperCase())) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        }
+    });
+}
+
+
 // ── Tools view ───────────────────────────────────────────────────────────────
 async function renderToolsView() {
     const container = document.getElementById('main-content');
@@ -1433,6 +1760,7 @@ function switchView(view) {
     else if (view === 'diff-run') renderDiffRunView();
     else if (view === 'search') renderSearchView();
     else if (view === 'team') renderTeamView();
+    else if (view === 'audit') renderAuditView();
     else if (view === 'tools') renderToolsView();
 }
 

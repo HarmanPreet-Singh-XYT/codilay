@@ -1249,6 +1249,64 @@ def create_app(
         await asyncio.to_thread(searcher.build_index)
         return {"rebuilt": True}
 
+    # ── Feature 10: Code Audits ───────────────────────────────────
+
+    class AuditRequest(BaseModel):
+        audit_type: str = "security"
+        mode: str = "passive"
+
+    @app.get("/api/audits")
+    async def list_audits():
+        from codilay.audit_manager import AuditManager
+        am = AuditManager(None, output_dir)
+        return am.get_index()
+
+    @app.post("/api/audits")
+    async def run_audit_endpoint(req: AuditRequest):
+        try:
+            settings = Settings.load()
+            settings.inject_env_vars()
+            cfg = CodiLayConfig(target_path=target_path)
+            cfg.llm_provider = settings.default_provider
+            cfg.llm_model = settings.default_model
+            if settings.custom_base_url:
+                cfg.llm_base_url = settings.custom_base_url
+
+            # Increase limit for audits to avoid truncation
+            cfg.max_tokens_per_call = 8192
+
+            from codilay.audit_manager import AuditManager
+            from codilay.llm_client import LLMClient
+
+            llm = LLMClient(cfg)
+            am = AuditManager(llm, output_dir)
+
+            state = _load_state()
+            links = _load_links()
+
+            result = await asyncio.to_thread(
+                am.run_audit,
+                req.audit_type,
+                req.mode,
+                state.section_contents,
+                links.get("open", []),
+                links.get("closed", []),
+                target_path,
+                None # scanner fallback for now
+            )
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/audits/{filename}")
+    async def get_audit_report(filename: str):
+        import os
+        report_path = os.path.join(output_dir, "audits", filename)
+        if not os.path.exists(report_path):
+            raise HTTPException(status_code=404, detail="Audit not found")
+        with open(report_path, "r", encoding="utf-8") as f:
+            return {"content": f.read()}
+
     return app
 
 

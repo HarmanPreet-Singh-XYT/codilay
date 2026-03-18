@@ -2,10 +2,10 @@
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch, call
-from click.testing import CliRunner
+from unittest.mock import MagicMock, call, patch
 
 import pytest
+from click.testing import CliRunner
 
 from codilay.cli import cli
 

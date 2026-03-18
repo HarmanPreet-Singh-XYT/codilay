@@ -12,6 +12,13 @@ CodiLay is not just a static documentation generator; it's an **agentic document
 
 ---
 
+## 🎥 Demo
+
+[![CodiLay Demo](https://img.youtube.com/vi/DKwydVqjrJw/0.jpg)](https://www.youtube.com/watch?v=DKwydVqjrJw)
+*CodiLay in action — tracing wires, generating docs, and browsing in the Web UI.*
+
+---
+
 ## 🚀 Experience CodiLay
 
 ### 1. Installation
@@ -324,6 +331,19 @@ codilay schedule stop .
 codilay schedule disable .
 ```
 
+### 🛡️ System Audits
+Run AI-powered audits against your architecture, security, performance, and code quality. Passive mode uses existing context (fast), while active mode deeply inspects files (thorough). Supports 48 different types of audits.
+
+```bash
+# Run a passive security audit
+codilay audit . --type security --mode passive
+
+# Run an active architecture audit
+codilay audit . --type architecture --mode active
+
+# Audits can also be run from the Interactive Menu or Web UI
+```
+
 ---
 
 ## ⌨️ CLI Reference
@@ -348,6 +368,7 @@ codilay schedule disable .
 | `codilay team` | Manage shared team knowledge (facts/decisions/conventions) |
 | `codilay search . "query"` | Full-text search across all past conversations |
 | `codilay schedule` | Configure and run scheduled doc updates (set/start/stop) |
+| `codilay audit .` | Run an automated codebase audit (48 types) |
 
 ---
 

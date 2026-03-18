@@ -336,7 +336,10 @@ class ChatStore:
             context.append({"role": m["role"], "content": m["content"]})
         for m in recent:
             if m["id"] not in pinned_ids:
-                context.append({"role": m["role"], "content": m["content"]})
+                role = m.get("role", "user")
+                if role not in ["user", "assistant", "system"]:
+                    role = "user"
+                context.append({"role": role, "content": m.get("content", "")})
 
         return context
 

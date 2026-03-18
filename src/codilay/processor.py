@@ -102,8 +102,9 @@ class Processor:
 
         result = self.llm.call(self._sys_prompt, user_prompt)
 
-        if "error" in result:
-            self.ui.warn(f"  LLM error for {file_path}: {result.get('error')}")
+        if not result or not isinstance(result, dict) or "error" in result:
+            error_msg = result.get('error') if isinstance(result, dict) else 'Invalid response type'
+            self.ui.warn(f"  LLM error for {file_path}: {error_msg}")
             return None
 
         self._apply_result(file_path, result, wires_to_this)
@@ -142,8 +143,9 @@ class Processor:
 
         skeleton_result = self.llm.call(self._sys_prompt, skeleton_user_prompt)
 
-        if "error" in skeleton_result:
-            self.ui.warn(f"  Skeleton pass failed for {file_path}: {skeleton_result.get('error')}")
+        if not skeleton_result or not isinstance(skeleton_result, dict) or "error" in skeleton_result:
+            error_msg = skeleton_result.get('error') if isinstance(skeleton_result, dict) else 'Invalid response type'
+            self.ui.warn(f"  Skeleton pass failed for {file_path}: {error_msg}")
             return None
 
         # Apply skeleton result
@@ -202,8 +204,9 @@ class Processor:
 
             detail_result = self.llm.call(self._sys_prompt, detail_user_prompt)
 
-            if "error" in detail_result:
-                self.ui.warn(f"    Detail pass {i + 1} failed: {detail_result.get('error')}")
+            if not detail_result or not isinstance(detail_result, dict) or "error" in detail_result:
+                error_msg = detail_result.get('error') if isinstance(detail_result, dict) else 'Invalid response type'
+                self.ui.warn(f"    Detail pass {i + 1} failed: {error_msg}")
                 continue
 
             # Apply detail result
@@ -228,9 +231,9 @@ class Processor:
 
         return skeleton_result
 
-    def _prioritize_chunks(self, chunks, interesting_symbols: list) -> list:
+    def _prioritize_chunks(self, chunks, interesting_symbols: Any) -> list:
         """Reorder chunks so those containing interesting symbols come first."""
-        if not interesting_symbols:
+        if not interesting_symbols or not isinstance(interesting_symbols, list):
             return chunks
 
         interesting_set = set(s.lower() for s in interesting_symbols)
@@ -243,6 +246,9 @@ class Processor:
 
     def _apply_result(self, file_path: str, result: Dict, wires_to_this: List[Dict]):
         """Apply LLM processing result to docstore and wire manager."""
+        if not isinstance(result, dict):
+            return
+
         new_section = result.get("new_section")
         if new_section and isinstance(new_section, dict):
             section_id = new_section.get("id", self._path_to_id(file_path))
@@ -310,6 +316,9 @@ class Processor:
 
     def _apply_detail_result(self, file_path: str, result: Dict):
         """Apply a detail pass result — patches only, no new sections."""
+        if not isinstance(result, dict):
+            return
+
         patches = result.get("patches", [])
         if isinstance(patches, list):
             for patch in patches:
@@ -365,8 +374,9 @@ class Processor:
 
         result = self.llm.call(self._sys_prompt, user_prompt)
 
-        if "error" in result:
-            self.ui.warn(f"Finalization error: {result.get('error')}")
+        if not result or not isinstance(result, dict) or "error" in result:
+            error_msg = result.get('error') if isinstance(result, dict) else 'Invalid response type'
+            self.ui.warn(f"Finalization error: {error_msg}")
             return
 
         overview = result.get("overview", "")
