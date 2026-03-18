@@ -103,7 +103,7 @@ class Processor:
         result = self.llm.call(self._sys_prompt, user_prompt)
 
         if not result or not isinstance(result, dict) or "error" in result:
-            error_msg = result.get('error') if isinstance(result, dict) else 'Invalid response type'
+            error_msg = result.get("error") if isinstance(result, dict) else "Invalid response type"
             self.ui.warn(f"  LLM error for {file_path}: {error_msg}")
             return None
 
@@ -144,7 +144,7 @@ class Processor:
         skeleton_result = self.llm.call(self._sys_prompt, skeleton_user_prompt)
 
         if not skeleton_result or not isinstance(skeleton_result, dict) or "error" in skeleton_result:
-            error_msg = skeleton_result.get('error') if isinstance(skeleton_result, dict) else 'Invalid response type'
+            error_msg = skeleton_result.get("error") if isinstance(skeleton_result, dict) else "Invalid response type"
             self.ui.warn(f"  Skeleton pass failed for {file_path}: {error_msg}")
             return None
 
@@ -205,7 +205,7 @@ class Processor:
             detail_result = self.llm.call(self._sys_prompt, detail_user_prompt)
 
             if not detail_result or not isinstance(detail_result, dict) or "error" in detail_result:
-                error_msg = detail_result.get('error') if isinstance(detail_result, dict) else 'Invalid response type'
+                error_msg = detail_result.get("error") if isinstance(detail_result, dict) else "Invalid response type"
                 self.ui.warn(f"    Detail pass {i + 1} failed: {error_msg}")
                 continue
 
@@ -375,7 +375,7 @@ class Processor:
         result = self.llm.call(self._sys_prompt, user_prompt)
 
         if not result or not isinstance(result, dict) or "error" in result:
-            error_msg = result.get('error') if isinstance(result, dict) else 'Invalid response type'
+            error_msg = result.get("error") if isinstance(result, dict) else "Invalid response type"
             self.ui.warn(f"Finalization error: {error_msg}")
             return
 

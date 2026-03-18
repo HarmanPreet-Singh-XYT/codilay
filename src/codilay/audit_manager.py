@@ -57,7 +57,7 @@ class AuditManager:
         "cost": "Cost (FinOps): Cloud cost optimization",
         "ai_ml": "AI/ML Audit: Model bias, data leakage",
         "algorithm": "Algorithm Audit: Efficiency, correctness",
-        "reversing": "Reverse Engineering Audit: Can attackers decompile your app?"
+        "reversing": "Reverse Engineering Audit: Can attackers decompile your app?",
     }
 
     def __init__(self, llm_client, output_dir: str):
@@ -97,7 +97,7 @@ class AuditManager:
 
         # Combine docs to some limit to avoid massive context
         doc_summary = []
-        for file_path, content in list(sections.items())[:100]: # Limit for token safety
+        for file_path, content in list(sections.items())[:100]:  # Limit for token safety
             doc_summary.append(f"--- {file_path} ---\n{content}\n")
 
         doc_text = "\n".join(doc_summary)
@@ -127,7 +127,7 @@ class AuditManager:
         open_wires: List[Dict],
         closed_wires: List[Dict],
         target_path: str,
-        scanner=None
+        scanner=None,
     ) -> Dict[str, Any]:
         """
         Run a passive or active audit.
@@ -139,7 +139,7 @@ class AuditManager:
         response_data = self.llm.call(
             "You are an expert security and architecture auditor. Provide specific file and line numbers.",
             prompt,
-            json_mode=False
+            json_mode=False,
         )
         response = response_data.get("answer", "") if isinstance(response_data, dict) else str(response_data)
 
@@ -154,16 +154,14 @@ class AuditManager:
 
         # Update index
         index = self.get_index()
-        index["runs"].append({
-            "type": audit_type,
-            "mode": mode,
-            "date": datetime.now(timezone.utc).isoformat(),
-            "report_file": report_filename
-        })
+        index["runs"].append(
+            {
+                "type": audit_type,
+                "mode": mode,
+                "date": datetime.now(timezone.utc).isoformat(),
+                "report_file": report_filename,
+            }
+        )
         self.save_index(index)
 
-        return {
-            "report_path": report_path,
-            "report_filename": report_filename,
-            "response": response
-        }
+        return {"report_path": report_path, "report_filename": report_filename, "response": response}

@@ -1258,6 +1258,7 @@ def create_app(
     @app.get("/api/audits")
     async def list_audits():
         from codilay.audit_manager import AuditManager
+
         am = AuditManager(None, output_dir)
         return am.get_index()
 
@@ -1292,7 +1293,7 @@ def create_app(
                 links.get("open", []),
                 links.get("closed", []),
                 target_path,
-                None # scanner fallback for now
+                None,  # scanner fallback for now
             )
             return result
         except Exception as e:
@@ -1301,6 +1302,7 @@ def create_app(
     @app.get("/api/audits/{filename}")
     async def get_audit_report(filename: str):
         import os
+
         report_path = os.path.join(output_dir, "audits", filename)
         if not os.path.exists(report_path):
             raise HTTPException(status_code=404, detail="Audit not found")

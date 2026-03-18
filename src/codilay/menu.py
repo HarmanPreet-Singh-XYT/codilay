@@ -1268,6 +1268,7 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
             if result:
                 return result
 
+
 def _prompt_target_path(label: str = "Path to codebase") -> Optional[str]:
     """Prompt for a target path with validation. Returns None on cancel."""
     raw = Prompt.ask(f"{label} [dim](0 to go back)[/dim]", default=".")

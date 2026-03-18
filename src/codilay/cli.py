@@ -1509,13 +1509,7 @@ def interactive(ctx):
         )
 
     elif result and result.get("action") == "audit":
-        ctx.invoke(
-            audit_command,
-            target=result["target"],
-            audit_type=result["type"],
-            mode=result["mode"]
-        )
-
+        ctx.invoke(audit_command, target=result["target"], audit_type=result["type"], mode=result["mode"])
 
 
 # ─── Setup wizard ─────────────────────────────────────────────────────────────
@@ -3521,6 +3515,7 @@ def schedule_stop(target):
     except PermissionError:
         console.print(f"[red]Permission denied sending signal to PID {pid}.[/red]")
 
+
 @cli.command("audit")
 @click.argument("target", default=".", type=click.Path(exists=True))
 @click.option(
@@ -3555,6 +3550,7 @@ def audit_command(ctx, target, audit_type, mode):
 
     # Set up LLM
     from codilay.llm_client import LLMClient
+
     llm = LLMClient(cfg)
 
     scanner = None
@@ -3571,7 +3567,7 @@ def audit_command(ctx, target, audit_type, mode):
             open_wires=state.open_wires,
             closed_wires=state.closed_wires,
             target_path=target,
-            scanner=scanner
+            scanner=scanner,
         )
 
     ui.success(f"Audit complete! Report saved to {result['report_path']}")
