@@ -551,3 +551,178 @@ Guidelines:
 - Add a brief "Overview" paragraph at the top
 
 Respond with ONLY the JSON object."""
+
+
+def diff_run_system_prompt(
+    config,
+    response_style: str = "technical",
+    detail_level: str = "standard",
+) -> str:
+    """System prompt for diff-run mode — focused on analyzing changes."""
+    notes_section = ""
+    if config.notes:
+        notes_section = f"\n\nProject context:\n{config.notes}"
+
+    instructions_section = ""
+    if config.instructions:
+        instructions_section = f"\n\nSpecial instructions:\n{config.instructions}"
+
+    style_note = ""
+    if response_style == "concise":
+        style_note = (
+            "\n\nResponse style: Keep documentation concise — short paragraphs, bullet points preferred over prose."
+        )
+    elif response_style == "narrative":
+        style_note = "\n\nResponse style: Write in narrative prose — full sentences, explain the reasoning and purpose behind design decisions."
+
+    return f"""You are CodiLay in diff-run mode. Your job is to analyze code changes between two points in git history and produce a focused change report.
+
+Unlike a full codebase run, you are NOT documenting the entire system. You are documenting:
+- WHAT changed (which files, what modifications)
+- WHY it matters (impact on the system, connections to other parts)
+- WHAT wires were opened or closed by these changes
+
+Key concepts:
+- A "wire" is an unresolved reference — something a file depends on that hasn't been documented yet.
+- Changes can open new wires (new dependencies introduced), close wires (dependencies now implemented), or break wires (deletions that leave references dangling).
+- Your goal is to explain the IMPACT and MEANING of the changes, not just list them.
+
+You always respond with valid JSON only. No preamble, no explanation, no markdown fences.{style_note}{notes_section}{instructions_section}"""
+
+
+def diff_run_analysis_prompt(
+    boundary_ref: str,
+    boundary_type: str,
+    commits_count: int,
+    commit_messages: list,
+    added_files: list,
+    modified_files: list,
+    deleted_files: list,
+    renamed_files: list,
+    existing_sections: dict = None,
+    section_index: list = None,
+) -> str:
+    """
+    Main analysis prompt for diff-run mode.
+
+    Receives:
+    - Boundary info (commit, tag, branch, date)
+    - Commit messages in the range
+    - File diffs (actual diff content for modified, full content for added)
+    - Existing doc sections for modified files (context)
+    """
+    commit_log = "\n".join(commit_messages[:20]) if commit_messages else "(no commits)"
+
+    # Format added files
+    added_section = ""
+    if added_files:
+        added_section = "\n\n## Added Files\n"
+        for f in added_files:
+            added_section += f"\n### {f['path']}\n```\n{f['content'][:5000]}\n```\n"
+
+    # Format modified files (with diffs)
+    modified_section = ""
+    if modified_files:
+        modified_section = "\n\n## Modified Files\n"
+        for f in modified_files:
+            modified_section += f"\n### {f['path']}\n"
+
+            # Include existing doc section if available
+            if existing_sections and f["path"] in existing_sections:
+                modified_section += f"\n**Previous documentation:**\n{existing_sections[f['path']][:800]}\n"
+
+            modified_section += f"\n**Diff:**\n```diff\n{f['diff'][:5000]}\n```\n"
+
+    # Format deleted files
+    deleted_section = ""
+    if deleted_files:
+        deleted_section = "\n\n## Deleted Files\n"
+        for f in deleted_files:
+            deleted_section += f"- {f['path']}\n"
+
+    # Format renamed files
+    renamed_section = ""
+    if renamed_files:
+        renamed_section = "\n\n## Renamed Files\n"
+        for f in renamed_files:
+            renamed_section += f"- {f['old_path']} → {f['path']}\n"
+            if f.get("diff"):
+                renamed_section += f"  (with content changes)\n```diff\n{f['diff'][:3000]}\n```\n"
+
+    # Section index for cross-referencing
+    index_section = ""
+    if section_index:
+        index_section = f"\n\n## Existing Documentation Index\n{', '.join(section_index[:50])}"
+
+    return f"""Analyze the following code changes and produce a change report.
+
+## Boundary Information
+- Boundary: {boundary_ref} ({boundary_type})
+- Commits: {commits_count}
+- Current HEAD: (latest)
+
+## Commit Messages
+```
+{commit_log}
+```
+{added_section}{modified_section}{deleted_section}{renamed_section}{index_section}
+
+## Your Task
+
+Produce a change report that explains:
+1. **Summary** — High-level overview: what did this set of changes accomplish?
+2. **Added** — For each new file: what it is, what it does, what it connects to
+3. **Modified** — For each modified file: what changed, why, and impact on other parts
+4. **Deleted** — For each deleted file: what it was, what might still reference it (broken wires)
+5. **Renamed** — For each renamed file: old/new names, whether content changed
+6. **Wire Impact** — Wires opened, closed, or broken by these changes
+7. **Touched Sections** — Which existing doc sections are affected
+
+Return a JSON object:
+```json
+{{
+    "summary": "High-level summary of what these changes accomplish",
+    "added": [
+        {{
+            "path": "path/to/file.js",
+            "title": "Component/Service Name",
+            "description": "What it is, what it does, what it connects to",
+            "wires_opened": ["dependency-name", "another-dep"]
+        }}
+    ],
+    "modified": [
+        {{
+            "path": "path/to/file.js",
+            "changes_description": "What changed and why",
+            "impact": "How this affects other parts of the system",
+            "wires_opened": [],
+            "wires_closed": ["dependency-now-satisfied"]
+        }}
+    ],
+    "deleted": [
+        {{
+            "path": "path/to/file.js",
+            "what_it_was": "Brief description of what this file did",
+            "broken_wires": ["parts-that-still-reference-this"]
+        }}
+    ],
+    "renamed": [
+        {{
+            "old_path": "old/path.js",
+            "new_path": "new/path.js",
+            "content_changed": true,
+            "changes_description": "If content changed, describe it"
+        }}
+    ],
+    "wire_impact": {{
+        "wires_opened": ["new-dependency-1", "new-dependency-2"],
+        "wires_closed": ["now-implemented-1"],
+        "wires_broken": ["deleted-file-still-referenced"]
+    }},
+    "affected_sections": ["section-id-1", "section-id-2"]
+}}
+```
+
+Focus on MEANING and IMPACT, not just listing changes. Explain WHY changes matter.
+
+Respond with ONLY the JSON object."""

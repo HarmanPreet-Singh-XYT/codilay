@@ -1197,11 +1197,12 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
         menu.add_row("[1]", "👁   Watch mode — auto-update docs on file save")
         menu.add_row("[2]", "📤  AI context export — compact doc for LLM context")
         menu.add_row("[3]", "📑  Doc diff — compare documentation versions")
-        menu.add_row("[4]", "🔍  Search — full-text search across conversations")
-        menu.add_row("[5]", "🗓️   Schedule — auto re-run on cron / git commits")
-        menu.add_row("[6]", "🔀  Graph filters — filter dependency graph")
-        menu.add_row("[7]", "🧠  Team memory — shared facts & decisions")
-        menu.add_row("[8]", "📊  Triage feedback — improve triage accuracy")
+        menu.add_row("[4]", "🔄  Diff-run — document changes since a boundary")
+        menu.add_row("[5]", "🔍  Search — full-text search across conversations")
+        menu.add_row("[6]", "🗓️   Schedule — auto re-run on cron / git commits")
+        menu.add_row("[7]", "🔀  Graph filters — filter dependency graph")
+        menu.add_row("[8]", "🧠  Team memory — shared facts & decisions")
+        menu.add_row("[9]", "📊  Triage feedback — improve triage accuracy")
         menu.add_row("[0]", "← Back to main menu")
 
         console.print(menu)
@@ -1209,7 +1210,7 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
 
         choice = Prompt.ask(
             "[bold cyan]Select a tool[/bold cyan]",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
             default="0",
         )
 
@@ -1232,26 +1233,31 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
                 return result
 
         elif choice == "4":
-            result = _menu_tool_search(settings)
+            result = _menu_tool_diff_run(settings)
             if result:
                 return result
 
         elif choice == "5":
-            result = _menu_tool_schedule(settings)
+            result = _menu_tool_search(settings)
             if result:
                 return result
 
         elif choice == "6":
-            result = _menu_tool_graph_filter(settings)
+            result = _menu_tool_schedule(settings)
             if result:
                 return result
 
         elif choice == "7":
-            result = _menu_tool_team_memory(settings)
+            result = _menu_tool_graph_filter(settings)
             if result:
                 return result
 
         elif choice == "8":
+            result = _menu_tool_team_memory(settings)
+            if result:
+                return result
+
+        elif choice == "9":
             result = _menu_tool_triage_feedback(settings)
             if result:
                 return result
@@ -1349,6 +1355,44 @@ def _menu_tool_diff_doc(settings: Settings) -> Optional[dict]:
         return None
 
     return {"action": "diff-doc", "target": target}
+
+
+def _menu_tool_diff_run(settings: Settings) -> Optional[dict]:
+    """Run diff-run analysis for changes since a boundary."""
+    _clear()
+    _header("Diff-Run — Document Changes")
+    _back_hint()
+
+    console.print(
+        Panel(
+            "Generate focused documentation for code changes since a specific\n"
+            "commit, tag, branch, or date.\n\n"
+            "[bold]Boundary types:[/bold]\n"
+            "  • Commit hash   — abc123f\n"
+            "  • Tag           — v2.1.0\n"
+            "  • Branch        — main (finds merge base)\n"
+            "  • Date          — 2024-03-01\n\n"
+            "[dim]Produces a change report in CHANGES_*.md format.[/dim]",
+            border_style="cyan",
+        )
+    )
+    console.print()
+
+    target = _prompt_target_path()
+    if not target:
+        return None
+
+    # Note: For now, just show info and tell user to use CLI
+    # In the future, we could add interactive prompts here
+    console.print(
+        "\n[dim]To run diff-run from the CLI:[/dim]\n"
+        f"  [bold]codilay diff-run {target} --since-branch main[/bold]\n"
+        f"  [bold]codilay diff-run {target} --since v2.1.0[/bold]\n"
+        f"  [bold]codilay diff-run {target} --since 2024-03-01[/bold]\n\n"
+        "[dim]Or use the Web UI for an interactive experience.[/dim]"
+    )
+    _pause()
+    return None
 
 
 def _menu_tool_search(settings: Settings) -> Optional[dict]:

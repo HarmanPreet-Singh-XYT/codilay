@@ -572,6 +572,224 @@ async function loadDiff() {
     }
 }
 
+// ── Diff-Run view ────────────────────────────────────────────────────────────
+async function renderDiffRunView() {
+    const container = document.getElementById('main-content');
+    container.innerHTML = `
+    <div style="padding: 32px;" class="diff-run-container">
+        <div class="diff-header">
+            <h2 style="font-size:18px;font-weight:600;">Diff-Run — Document Changes Since Boundary</h2>
+            <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">
+                Generate focused documentation for code changes since a specific commit, tag, branch, or date.
+            </p>
+        </div>
+        
+        <div style="margin-top:24px;background:var(--bg-secondary);padding:20px;border-radius:12px;border:1px solid var(--border);">
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;">Boundary Options</h3>
+            
+            <div style="display:grid;gap:16px;">
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:6px;color:var(--text-muted);">
+                        Boundary Type
+                    </label>
+                    <select id="diff-run-type" onchange="toggleDiffRunInputs()" 
+                            style="width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+                        <option value="commit">Commit Hash</option>
+                        <option value="tag">Tag</option>
+                        <option value="branch" selected>Branch (merge-base)</option>
+                        <option value="date">Date</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:6px;color:var(--text-muted);">
+                        <span id="diff-run-input-label">Branch Name</span>
+                    </label>
+                    <input type="text" id="diff-run-value" placeholder="main" value="main"
+                           style="width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;" id="diff-run-hint">
+                        Compare current branch against main (finds merge base)
+                    </div>
+                </div>
+                
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                        <input type="checkbox" id="diff-run-update-doc" style="cursor:pointer;">
+                        <span>Update CODEBASE.md with changes</span>
+                    </label>
+                </div>
+                
+                <button class="tool-btn primary" onclick="runDiffRun()" style="width:fit-content;">
+                    <i data-lucide="git-branch" style="width:14px;height:14px;"></i>
+                    Generate Change Report
+                </button>
+            </div>
+        </div>
+        
+        <div id="diff-run-results" style="margin-top:24px;">
+            <div class="empty-state">
+                <div class="empty-icon"><i data-lucide="git-branch"></i></div>
+                <h3>Ready to analyze changes</h3>
+                <p>Select a boundary and click "Generate Change Report" to document what changed.</p>
+                <div style="margin-top:16px;text-align:left;max-width:500px;font-size:12px;color:var(--text-muted);line-height:1.6;">
+                    <strong>Use cases:</strong><br>
+                    • <strong>Branch:</strong> Document changes before submitting a PR<br>
+                    • <strong>Tag:</strong> Generate release notes between versions<br>
+                    • <strong>Date:</strong> See what changed this month<br>
+                    • <strong>Commit:</strong> Analyze changes since a specific commit
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+    updateIcons();
+}
+
+function toggleDiffRunInputs() {
+    const type = document.getElementById('diff-run-type').value;
+    const label = document.getElementById('diff-run-input-label');
+    const input = document.getElementById('diff-run-value');
+    const hint = document.getElementById('diff-run-hint');
+    
+    switch(type) {
+        case 'commit':
+            label.textContent = 'Commit Hash';
+            input.placeholder = 'abc123f';
+            input.value = '';
+            hint.textContent = 'Enter a commit hash (short or full)';
+            break;
+        case 'tag':
+            label.textContent = 'Tag Name';
+            input.placeholder = 'v2.1.0';
+            input.value = '';
+            hint.textContent = 'Enter a git tag (e.g., v2.1.0)';
+            break;
+        case 'branch':
+            label.textContent = 'Branch Name';
+            input.placeholder = 'main';
+            input.value = 'main';
+            hint.textContent = 'Compare current branch against this branch (finds merge base)';
+            break;
+        case 'date':
+            label.textContent = 'Date (YYYY-MM-DD)';
+            input.placeholder = '2024-03-01';
+            input.value = '';
+            hint.textContent = 'Show changes after this date';
+            break;
+    }
+}
+
+async function runDiffRun() {
+    const resultsEl = document.getElementById('diff-run-results');
+    const type = document.getElementById('diff-run-type').value;
+    const value = document.getElementById('diff-run-value').value.trim();
+    const updateDoc = document.getElementById('diff-run-update-doc').checked;
+    
+    if (!value) {
+        resultsEl.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon"><i data-lucide="alert-circle"></i></div>
+                <h3>Missing boundary value</h3>
+                <p>Please enter a ${type} to analyze changes.</p>
+            </div>
+        `;
+        updateIcons();
+        return;
+    }
+    
+    resultsEl.innerHTML = '<div class="loading">Analyzing changes and generating report...</div>';
+    
+    try {
+        const params = new URLSearchParams();
+        if (type === 'branch') {
+            params.append('since_branch', value);
+        } else {
+            params.append('since', value);
+        }
+        if (updateDoc) {
+            params.append('update_doc', 'true');
+        }
+        
+        const res = await fetch(`/api/diff-run?${params.toString()}`);
+        const data = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(data.error || 'Failed to generate change report');
+        }
+        
+        // Display results
+        let html = `
+            <div class="diff-section" style="background:var(--bg-success);border:1px solid var(--green);padding:16px;border-radius:12px;margin-bottom:20px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <i data-lucide="check-circle" style="color:var(--green);width:20px;height:20px;"></i>
+                    <div>
+                        <div style="font-weight:600;color:var(--green);">Change Report Generated</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                            ${escHtml(data.report_path || 'Report saved')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Summary
+        if (data.summary) {
+            html += `
+                <div class="diff-section">
+                    <div class="diff-section-header">
+                        <span class="diff-section-title">Summary</span>
+                    </div>
+                    <div class="diff-section-body">
+                        ${escHtml(data.summary)}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Changes stats
+        if (data.changes) {
+            const c = data.changes;
+            html += `
+                <div class="diff-section">
+                    <div class="diff-section-header">
+                        <span class="diff-section-title">Changes Detected</span>
+                    </div>
+                    <div class="diff-section-body" style="display:flex;gap:12px;flex-wrap:wrap;">
+                        ${c.added > 0 ? `<div class="diff-badge added">+${c.added} added</div>` : ''}
+                        ${c.modified > 0 ? `<div class="diff-badge modified">~${c.modified} modified</div>` : ''}
+                        ${c.deleted > 0 ? `<div class="diff-badge removed">-${c.deleted} deleted</div>` : ''}
+                        ${c.renamed > 0 ? `<div class="diff-badge">→${c.renamed} renamed</div>` : ''}
+                        <div class="diff-badge">${c.commits || 0} commits</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // LLM usage
+        if (data.llm_usage) {
+            const u = data.llm_usage;
+            html += `
+                <div style="margin-top:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;font-size:12px;color:var(--text-muted);">
+                    LLM usage: ${u.calls || 0} calls, ${(u.input_tokens || 0).toLocaleString()} input tokens, ${(u.output_tokens || 0).toLocaleString()} output tokens
+                </div>
+            `;
+        }
+        
+        resultsEl.innerHTML = html;
+        updateIcons();
+        
+    } catch (e) {
+        resultsEl.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon"><i data-lucide="alert-circle"></i></div>
+                <h3>Error generating report</h3>
+                <p style="color:var(--red);">${escHtml(e.message)}</p>
+            </div>
+        `;
+        updateIcons();
+    }
+}
+
 // ── Search view ──────────────────────────────────────────────────────────────
 let searchDebounce = null;
 
@@ -1212,6 +1430,7 @@ function switchView(view) {
     if (view === 'document') renderDocument();
     else if (view === 'graph') renderGraph();
     else if (view === 'diff') renderDiffView();
+    else if (view === 'diff-run') renderDiffRunView();
     else if (view === 'search') renderSearchView();
     else if (view === 'team') renderTeamView();
     else if (view === 'tools') renderToolsView();

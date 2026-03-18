@@ -118,19 +118,37 @@ A VSCode extension that surfaces documentation inline alongside the file you're 
 
 Install from `vscode-extension/` directory — see the extension README for details.
 
-### 🤖 AI Context Export
-Export your documentation in a compact, token-efficient format designed for feeding into another LLM's context window. Supports markdown, XML, and JSON formats with optional token budgets.
+### 🤖 Interactive AI Context Export
+Export your documentation in a precise, token-efficient format tailored for LLM context windows. CodiLay supports **LLM-guided customization**, allowing you to describe exactly what you need in natural language.
 
+#### 💬 Interactive Mode
+Launch a conversational interface to define your export specification. The agent will translate your needs into a spec, estimate tokens, and show you a plan before committing.
 ```bash
-# Export as compact markdown (default)
-codilay export .
-
-# Export as XML with a 4000-token budget
-codilay export . --format xml --max-tokens 4000
-
-# Export as JSON, exclude the dependency graph
-codilay export . -f json --no-graph -o context.json
+codilay export . --interactive
 ```
+
+#### ⚡️ Query Mode
+Provide a natural language description directly from the CLI for a one-shot export.
+```bash
+# Just the file structure and linkage
+codilay export . --query "file structure and linkage only" -o structure.md
+
+# API surface and schemas
+codilay export . --query "just the API endpoints and their schemas" -o api.md
+```
+
+#### 📋 Preset Mode
+Use pre-configured templates or your own custom presets for common tasks.
+```bash
+# List available presets (structure, api-surface, onboarding, etc.)
+codilay export . --list-presets
+
+# Use the 'architecture' preset
+codilay export . --preset architecture -o context.md
+```
+
+#### ✂️ Implementation Stripping
+When using interactive or query modes, CodiLay can automatically **strip implementation details** (function bodies, internal logic) while keeping signatures and documentation headers, drastically reducing token usage without losing architectural context.
 
 ### 📊 Documentation Diff
 See a section-by-section changelog of what shifted in your documentation between runs. Unlike `codilay diff` (which shows git-level file changes), `diff-doc` compares the actual documentation content.
@@ -323,7 +341,7 @@ codilay schedule disable .
 | `codilay keys` | Manage stored API keys |
 | `codilay clean .` | Wipe all generated artifacts |
 | `codilay watch .` | Watch for file changes, auto-update docs |
-| `codilay export .` | Export docs in AI-friendly format (markdown/xml/json) |
+| `codilay export .` | Export docs (Interactive, Query, or Preset modes) |
 | `codilay diff-doc .` | Show section-level documentation diff between runs |
 | `codilay triage-feedback` | Manage triage corrections (add/list/hint/clear/remove) |
 | `codilay graph .` | View and filter the dependency graph |
@@ -413,6 +431,8 @@ src/codilay/
 ├── server.py           # FastAPI Intelligence Server (Web UI + API)
 ├── watcher.py          # File system watcher (watch mode)
 ├── exporter.py         # AI-friendly doc export (markdown/xml/json)
+├── export_spec.py      # Export specification schema & presets
+├── interactive_export.py # LLM conversation handler for exports
 ├── doc_differ.py       # Section-level doc diffing & version snapshots
 ├── diff_analyzer.py    # Git diff extraction & boundary resolution (diff-run)
 ├── change_report.py    # Change report generation (diff-run)

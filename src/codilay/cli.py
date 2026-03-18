@@ -16,6 +16,7 @@ Tools & Automation:
     codilay watch .                      Watch mode — auto-update on save
     codilay export . --for-ai            AI-optimized doc export
     codilay diff-doc .                   Doc-level diff between versions
+    codilay diff-run . --since abc123f   Document changes since boundary
     codilay search . -q 'query'          Search past conversations
     codilay schedule set . '0 2 * * *'   Cron-based auto re-runs
     codilay graph .                      Filtered dependency graph
@@ -2232,36 +2233,210 @@ def watch(target, debounce, verbose):
 @cli.command("export")
 @click.argument("target", default=".", type=click.Path(exists=True))
 @click.option(
-    "--format", "-f", "fmt", default="markdown", type=click.Choice(["markdown", "xml", "json"]), help="Export format"
+    "--format", "-f", "fmt", default=None, type=click.Choice(["markdown", "xml", "json"]), help="Export format"
 )
 @click.option("--max-tokens", "-t", default=None, type=int, help="Token budget limit")
 @click.option("--no-graph", is_flag=True, help="Exclude dependency graph")
 @click.option("--include-unresolved", is_flag=True, help="Include unresolved references")
 @click.option("--output-file", "-o", default=None, help="Write to file instead of stdout")
-def export_cmd(target, fmt, max_tokens, no_graph, include_unresolved, output_file):
+@click.option("--interactive", "-i", is_flag=True, help="Interactive export with LLM-guided customization")
+@click.option("--query", "-q", default=None, help="Natural language query for export customization")
+@click.option("--preset", "-p", default=None, help="Use a named preset (e.g., 'structure', 'api-surface')")
+@click.option("--list-presets", is_flag=True, help="Show available presets and exit")
+def export_cmd(
+    target, fmt, max_tokens, no_graph, include_unresolved, output_file, interactive, query, preset, list_presets
+):
     """Export documentation in a compact, AI-friendly format.
 
     \b
-    Examples:
+    Basic usage:
         codilay export .                          Markdown export to stdout
         codilay export . --format xml             XML format
         codilay export . -f json -t 8000          JSON with 8k token budget
         codilay export . -o context.md            Write to file
+
+    \b
+    Interactive and customized exports:
+        codilay export . --interactive            LLM-guided export customization
+        codilay export . --query "file structure and linkage only"
+        codilay export . --preset structure       Use built-in preset
+        codilay export . --list-presets           Show available presets
     """
     target = os.path.abspath(target)
     output_dir = os.path.join(target, "codilay")
 
-    from codilay.exporter import export_for_ai
+    # List presets and exit if requested
+    if list_presets:
+        from codilay.interactive_export import show_presets
+        from codilay.settings import Settings
+
+        try:
+            settings = Settings.load()
+            custom_presets = getattr(settings, "export_presets", None)
+        except:
+            custom_presets = None
+
+        show_presets(custom_presets)
+        return
+
+    # Determine export mode
+    spec = None
+
+    if interactive:
+        # Interactive mode - LLM conversation
+        from codilay.interactive_export import interactive_export_flow
+        from codilay.config import CodiLayConfig
+        from codilay.llm_client import LLMClient
+        from codilay.settings import Settings
+
+        try:
+            settings = Settings.load()
+            config = CodiLayConfig()
+            config.llm_provider = settings.default_provider
+            config.llm_model = settings.get_effective_model()
+            llm_client = LLMClient(config)
+        except Exception as e:
+            console.print(f"[red]Failed to initialize LLM client: {e}[/red]")
+            return
+
+        try:
+            spec = interactive_export_flow(output_dir, llm_client)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Export cancelled[/yellow]")
+            return
+        except Exception as e:
+            console.print(f"[red]Interactive export failed: {e}[/red]")
+            return
+
+    elif query:
+        # Query mode - LLM translates query to spec
+        from codilay.interactive_export import query_llm_for_spec, estimate_tokens
+        from codilay.exporter import AIExporter
+        from codilay.state import AgentState
+        from codilay.config import CodiLayConfig
+        from codilay.llm_client import LLMClient
+        from codilay.settings import Settings
+        import json as json_lib
+
+        try:
+            settings = Settings.load()
+            config = CodiLayConfig()
+            config.llm_provider = settings.default_provider
+            config.llm_model = settings.get_effective_model()
+            llm_client = LLMClient(config)
+        except Exception as e:
+            console.print(f"[red]Failed to initialize LLM client: {e}[/red]")
+            return
+
+        try:
+            # Load state to get available sections
+            state_path = os.path.join(output_dir, ".codilay_state.json")
+            if not os.path.exists(state_path):
+                console.print(f"[red]No state found at {state_path}[/red]")
+                return
+
+            state = AgentState.load(state_path)
+            available_sections = list(state.section_index.keys())
+
+            console.print(f"[dim]Interpreting query: '{query}'[/dim]")
+            spec = query_llm_for_spec(query, available_sections, llm_client)
+
+            # Load exporter for token estimation
+            links_path = os.path.join(output_dir, "links.json")
+            closed_wires = []
+            open_wires = []
+            project_name = ""
+
+            if os.path.exists(links_path):
+                with open(links_path, "r", encoding="utf-8") as f:
+                    links = json_lib.load(f)
+                closed_wires = links.get("closed", [])
+                open_wires = links.get("open", [])
+                project_name = links.get("project", "")
+
+            exporter = AIExporter(
+                section_index=state.section_index,
+                section_contents=state.section_contents,
+                closed_wires=closed_wires,
+                open_wires=open_wires,
+                project_name=project_name,
+            )
+
+            est_tokens, char_count = estimate_tokens(spec, exporter)
+            console.print(f"[green]✓[/green] {spec.summary}")
+            console.print(f"[dim]Estimated size: ~{est_tokens:,} tokens ({char_count:,} chars)[/dim]")
+        except Exception as e:
+            console.print(f"[red]Query interpretation failed: {e}[/red]")
+            return
+
+    elif preset:
+        # Preset mode
+        from codilay.export_spec import get_preset
+        from codilay.settings import Settings
+
+        try:
+            settings = Settings.load()
+            custom_presets = getattr(settings, "export_presets", None)
+        except:
+            custom_presets = None
+
+        spec = get_preset(preset, custom_presets)
+        if spec is None:
+            console.print(f"[red]Unknown preset: {preset}[/red]")
+            console.print("\nUse --list-presets to see available presets")
+            return
+
+        console.print(f"[green]Using preset:[/green] {spec.summary}")
+
+    # Export using spec or traditional parameters
+    from codilay.exporter import export_for_ai, AIExporter
+    from codilay.state import AgentState
+    import json as json_lib
 
     try:
-        result = export_for_ai(
-            output_dir=output_dir,
-            fmt=fmt,
-            max_tokens=max_tokens,
-            include_graph=not no_graph,
-        )
+        if spec:
+            # Spec-based export
+            state_path = os.path.join(output_dir, ".codilay_state.json")
+            if not os.path.exists(state_path):
+                console.print(f"[red]No state found at {state_path}[/red]")
+                return
+
+            state = AgentState.load(state_path)
+
+            links_path = os.path.join(output_dir, "links.json")
+            closed_wires = []
+            open_wires = []
+            project_name = ""
+
+            if os.path.exists(links_path):
+                with open(links_path, "r", encoding="utf-8") as f:
+                    links = json_lib.load(f)
+                closed_wires = links.get("closed", [])
+                open_wires = links.get("open", [])
+                project_name = links.get("project", "")
+
+            exporter = AIExporter(
+                section_index=state.section_index,
+                section_contents=state.section_contents,
+                closed_wires=closed_wires,
+                open_wires=open_wires,
+                project_name=project_name,
+            )
+
+            result = exporter.export(spec=spec)
+        else:
+            # Traditional export
+            result = export_for_ai(
+                output_dir=output_dir,
+                fmt=fmt,
+                max_tokens=max_tokens,
+                include_graph=not no_graph,
+            )
     except FileNotFoundError as e:
         console.print(f"[red]{e}[/red]")
+        return
+    except Exception as e:
+        console.print(f"[red]Export failed: {e}[/red]")
         return
 
     if output_file:
@@ -2360,6 +2535,210 @@ def diff_doc(target, json_output):
                 console.print(f"    [dim]… +{len(sc.diff_lines) - 5} more lines[/dim]")
 
     console.print(f"\n[bold]Total: {result.total_section_changes} section changes[/bold]")
+
+
+# ─── Diff-run command ─────────────────────────────────────────────────────────
+
+
+@cli.command("diff-run")
+@click.argument("target", default=".", type=click.Path(exists=True))
+@click.option("--since", help="Boundary commit, tag, or date (YYYY-MM-DD)")
+@click.option("--since-branch", help="Compare against a branch (e.g., main)")
+@click.option("--update-doc", is_flag=True, help="Update CODEBASE.md with changes")
+@common_options
+def diff_run(target, since, since_branch, update_doc, config, output, model, provider, base_url, verbose):
+    """Document only changes since a specific boundary.
+
+    \b
+    Produces a focused change report instead of full codebase documentation.
+    Analyzes what changed (diffs for modified files, full content for new files)
+    and generates an impact analysis.
+
+    \b
+    Boundary options:
+        --since abc123f          Commit hash
+        --since v2.1.0           Tag
+        --since 2024-03-01       Date
+        --since-branch main      Branch (finds merge base)
+
+    \b
+    Examples:
+        codilay diff-run . --since abc123f
+        codilay diff-run . --since v2.1.0
+        codilay diff-run . --since-branch main
+        codilay diff-run . --since 2024-03-01
+        codilay diff-run . --since-branch feature --update-doc
+    """
+    from codilay.change_report import ChangeReportGenerator
+    from codilay.diff_analyzer import DiffAnalyzer
+    from codilay.llm_client import LLMClient
+    from codilay.prompts import diff_run_analysis_prompt, diff_run_system_prompt
+
+    if not since and not since_branch:
+        console.print(
+            "[red]Error:[/red] Must specify either --since or --since-branch\n"
+            "[dim]Examples:[/dim]\n"
+            "  codilay diff-run . --since abc123f\n"
+            "  codilay diff-run . --since-branch main"
+        )
+        return
+
+    target = os.path.abspath(target)
+    output_dir = os.path.join(target, "codilay")
+    os.makedirs(output_dir, exist_ok=True)
+
+    ui = UI(console, verbose)
+
+    # ── Git validation ────────────────────────────────────────────
+    ui.phase("Analyzing changes with diff-run")
+
+    analyzer = DiffAnalyzer(target)
+    if not analyzer.is_git_repo:
+        console.print("[red]Error:[/red] Target directory is not a git repository.")
+        return
+
+    # ── Resolve boundary ──────────────────────────────────────────
+    with ui.spinner("Resolving boundary..."):
+        boundary_result = analyzer.resolve_boundary(since=since, since_branch=since_branch)
+
+    if not boundary_result:
+        console.print(
+            f"[red]Error:[/red] Could not resolve boundary: "
+            f"{since or since_branch}\n"
+            "[dim]Make sure the commit/tag/branch exists and the date format is YYYY-MM-DD[/dim]"
+        )
+        return
+
+    base_commit, boundary_type = boundary_result
+    boundary_ref = since or since_branch or base_commit
+
+    console.print(
+        f"[green]Boundary resolved:[/green] {boundary_ref} [dim]({boundary_type}, commit {base_commit[:8]})[/dim]"
+    )
+
+    # ── Analyze changes ───────────────────────────────────────────
+    with ui.spinner("Extracting diffs and changes..."):
+        diff_result = analyzer.analyze(since=since, since_branch=since_branch)
+
+    if not diff_result:
+        console.print("[red]Error:[/red] Failed to analyze changes.")
+        return
+
+    if not diff_result.file_diffs:
+        console.print("[green]No changes detected since the boundary.[/green]")
+        return
+
+    # Show summary
+    console.print(
+        f"\n[bold]Changes detected:[/bold]\n"
+        f"  [green]+{len(diff_result.added_files)} added[/green]\n"
+        f"  [yellow]~{len(diff_result.modified_files)} modified[/yellow]\n"
+        f"  [red]-{len(diff_result.deleted_files)} deleted[/red]\n"
+        f"  [cyan]→{len(diff_result.renamed_files)} renamed[/cyan]\n"
+        f"  [dim]{diff_result.commits_count} commits[/dim]"
+    )
+
+    # ── Load config and LLM ───────────────────────────────────────
+    cfg = CodiLayConfig.load(target, config)
+
+    # Apply CLI overrides
+    if provider:
+        cfg.llm_provider = provider
+    if model:
+        cfg.llm_model = model
+    if base_url:
+        cfg.llm_base_url = base_url
+
+    llm = LLMClient(cfg)
+
+    # ── Prepare LLM analysis ──────────────────────────────────────
+    ui.phase("Analyzing impact with LLM")
+
+    # Load existing doc sections for modified files (if available)
+    # TODO: For now, we skip this optimization. In the future, we could load
+    # the existing CODEBASE.md sections to provide "before" context to the LLM.
+    existing_sections = {}
+    section_index = []
+
+    # Format file diffs for LLM
+    added_files = []
+    for f in diff_result.added_files:
+        added_files.append({"path": f.path, "content": f.full_content or ""})
+
+    modified_files = []
+    for f in diff_result.modified_files:
+        modified_files.append({"path": f.path, "diff": f.diff_content or ""})
+
+    deleted_files = []
+    for f in diff_result.deleted_files:
+        deleted_files.append({"path": f.path})
+
+    renamed_files = []
+    for f in diff_result.renamed_files:
+        renamed_files.append(
+            {
+                "path": f.path,
+                "old_path": f.old_path or "",
+                "diff": f.diff_content or "",
+            }
+        )
+
+    # Build prompts
+    sys_prompt = diff_run_system_prompt(
+        cfg,
+        response_style=getattr(cfg, "response_style", "technical"),
+        detail_level=getattr(cfg, "detail_level", "standard"),
+    )
+
+    user_prompt = diff_run_analysis_prompt(
+        boundary_ref=boundary_ref,
+        boundary_type=boundary_type,
+        commits_count=diff_result.commits_count,
+        commit_messages=diff_result.commit_messages,
+        added_files=added_files,
+        modified_files=modified_files,
+        deleted_files=deleted_files,
+        renamed_files=renamed_files,
+        existing_sections=existing_sections,
+        section_index=section_index,
+    )
+
+    # Call LLM
+    with ui.spinner("Generating change analysis..."):
+        result = llm.call(sys_prompt, user_prompt)
+
+    if "error" in result:
+        console.print(f"[red]LLM error:[/red] {result.get('error')}")
+        return
+
+    # ── Generate report ───────────────────────────────────────────
+    ui.phase("Writing change report")
+
+    report_gen = ChangeReportGenerator(output_dir)
+    report_path = report_gen.generate_report(
+        analysis_result=result,
+        boundary_ref=boundary_ref,
+        boundary_type=boundary_type,
+        commits_count=diff_result.commits_count,
+        commit_messages=diff_result.commit_messages,
+    )
+
+    console.print(f"\n[green]✓ Change report generated:[/green] [cyan]{report_path}[/cyan]")
+
+    # ── Update main doc (optional) ────────────────────────────────
+    if update_doc:
+        console.print("\n[dim]Updating CODEBASE.md with changes...[/dim]")
+        # TODO: Implement docstore integration to patch existing sections
+        # and add new sections from the diff-run analysis
+        console.print("[yellow]Note:[/yellow] --update-doc integration is coming soon.")
+
+    # ── Show LLM usage ────────────────────────────────────────────
+    stats = llm.get_usage_stats()
+    ui.info(
+        f"LLM usage: {stats['total_calls']} calls, "
+        f"{stats['total_input_tokens']:,} input tokens, "
+        f"{stats['total_output_tokens']:,} output tokens"
+    )
 
 
 # ─── Triage Feedback command (Feature 5) ─────────────────────────────────────

@@ -17,6 +17,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from codilay.export_spec import ExportSpec
+
 
 class AIExporter:
     """
@@ -47,6 +49,7 @@ class AIExporter:
         max_tokens: Optional[int] = None,
         include_graph: bool = True,
         include_unresolved: bool = False,
+        spec: Optional[ExportSpec] = None,
     ) -> str:
         """
         Export documentation in a compact format.
@@ -56,13 +59,22 @@ class AIExporter:
             max_tokens: Approximate token budget. None = no limit.
             include_graph: Include dependency graph.
             include_unresolved: Include unresolved references.
+            spec: Optional ExportSpec for fine-grained control. If provided,
+                  overrides fmt, max_tokens, include_graph, include_unresolved.
         """
+        # Apply spec overrides if provided
+        if spec:
+            fmt = spec.format
+            max_tokens = spec.max_tokens
+            include_graph = spec.include_graph
+            include_unresolved = spec.include_unresolved
+
         if fmt == "xml":
-            return self._export_xml(max_tokens, include_graph, include_unresolved)
+            return self._export_xml(max_tokens, include_graph, include_unresolved, spec)
         elif fmt == "json":
-            return self._export_json(max_tokens, include_graph, include_unresolved)
+            return self._export_json(max_tokens, include_graph, include_unresolved, spec)
         else:
-            return self._export_markdown(max_tokens, include_graph, include_unresolved)
+            return self._export_markdown(max_tokens, include_graph, include_unresolved, spec)
 
     # ── Markdown format (compact) ─────────────────────────────────
 
@@ -71,6 +83,7 @@ class AIExporter:
         max_tokens: Optional[int],
         include_graph: bool,
         include_unresolved: bool,
+        spec: Optional[ExportSpec] = None,
     ) -> str:
         lines = [
             f"# {self._project or 'Project'} — AI Context",
@@ -78,10 +91,15 @@ class AIExporter:
             "",
         ]
 
+        # Add spec summary if provided
+        if spec and spec.summary:
+            lines.append(f"<!-- Export: {spec.summary} -->")
+            lines.append("")
+
         # Compact sections
-        sections = self._get_ordered_sections(include_graph, include_unresolved)
+        sections = self._get_ordered_sections(include_graph, include_unresolved, spec)
         for sid, title, content in sections:
-            compressed = self._compress_content(content)
+            compressed = self._compress_content(content, spec)
             if not compressed.strip():
                 continue
             file_ref = self._index.get(sid, {}).get("file", "")
@@ -117,15 +135,16 @@ class AIExporter:
         max_tokens: Optional[int],
         include_graph: bool,
         include_unresolved: bool,
+        spec: Optional[ExportSpec] = None,
     ) -> str:
         lines = [
             f'<codebase project="{self._escape_xml(self._project or "Project")}"'
             f' exported="{datetime.now(timezone.utc).strftime("%Y-%m-%d")}">',
         ]
 
-        sections = self._get_ordered_sections(include_graph, include_unresolved)
+        sections = self._get_ordered_sections(include_graph, include_unresolved, spec)
         for sid, title, content in sections:
-            compressed = self._compress_content(content)
+            compressed = self._compress_content(content, spec)
             if not compressed.strip():
                 continue
             file_ref = self._index.get(sid, {}).get("file", "")
@@ -165,6 +184,7 @@ class AIExporter:
         max_tokens: Optional[int],
         include_graph: bool,
         include_unresolved: bool,
+        spec: Optional[ExportSpec] = None,
     ) -> str:
         data: Dict[str, Any] = {
             "project": self._project or "Project",
@@ -172,9 +192,9 @@ class AIExporter:
             "sections": [],
         }
 
-        sections = self._get_ordered_sections(include_graph, include_unresolved)
+        sections = self._get_ordered_sections(include_graph, include_unresolved, spec)
         for sid, title, content in sections:
-            compressed = self._compress_content(content)
+            compressed = self._compress_content(content, spec)
             if not compressed.strip():
                 continue
             entry: Dict[str, Any] = {
@@ -213,6 +233,7 @@ class AIExporter:
         self,
         include_graph: bool,
         include_unresolved: bool,
+        spec: Optional[ExportSpec] = None,
     ) -> List[tuple]:
         """Return (section_id, title, content) tuples in order."""
         skip_ids = set()
@@ -225,6 +246,11 @@ class AIExporter:
         for sid, meta in self._index.items():
             if sid in skip_ids:
                 continue
+
+            # Apply ExportSpec filtering if provided
+            if spec and not spec.matches_section(sid):
+                continue
+
             content = self._contents.get(sid, "")
             if not content:
                 continue
@@ -232,7 +258,7 @@ class AIExporter:
 
         return sections
 
-    def _compress_content(self, content: str) -> str:
+    def _compress_content(self, content: str, spec: Optional[ExportSpec] = None) -> str:
         """Aggressively compress documentation content to save tokens."""
         if not content:
             return ""
@@ -271,7 +297,57 @@ class AIExporter:
         # Remove stale-section markers
         content = re.sub(r"> ⚠️ \*This section.*?\*\n\n", "", content)
 
+        # Apply spec-based content transformations
+        if spec and spec.strip_implementation:
+            content = self._strip_implementation_details(content)
+
         return content.strip()
+
+    def _strip_implementation_details(self, content: str) -> str:
+        """
+        Strip implementation details, keeping only signatures and interfaces.
+        This is a heuristic approach suitable for most code documentation.
+        """
+        lines = content.split("\n")
+        result = []
+        in_code_block = False
+        code_block_lines = []
+
+        for line in lines:
+            # Track code blocks
+            if line.strip().startswith("```"):
+                if in_code_block:
+                    # End of code block - only keep if it looks like a signature
+                    if any(
+                        keyword in "\n".join(code_block_lines)
+                        for keyword in ["def ", "class ", "function ", "interface ", "type ", "const ", "let ", "var "]
+                    ):
+                        # Keep just function/class signatures
+                        for code_line in code_block_lines:
+                            if any(kw in code_line for kw in ["def ", "class ", "function ", "interface ", "type "]):
+                                result.append(code_line.split("{")[0].split(":")[0] + "...")
+                                break
+                    code_block_lines = []
+                in_code_block = not in_code_block
+                if not in_code_block:
+                    continue
+
+            if in_code_block:
+                code_block_lines.append(line)
+            else:
+                # Outside code blocks, keep structure but strip detailed explanations
+                stripped = line.strip()
+                # Keep headers, list items, and short lines
+                if (
+                    stripped.startswith("#")
+                    or stripped.startswith("-")
+                    or stripped.startswith("*")
+                    or len(stripped) < 100
+                    or stripped.startswith("`")
+                ):
+                    result.append(line)
+
+        return "\n".join(result)
 
     def _truncate_to_tokens(self, text: str, max_tokens: int) -> str:
         """Truncate text to approximately max_tokens."""

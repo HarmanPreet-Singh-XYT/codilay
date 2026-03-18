@@ -825,6 +825,150 @@ def create_app(
         store = DocVersionStore(output_dir)
         return {"snapshots": store.list_snapshots()}
 
+    # ── Diff-run endpoint ─────────────────────────────────────────
+
+    @app.get("/api/diff-run")
+    async def run_diff_analysis(
+        since: Optional[str] = None,
+        since_branch: Optional[str] = None,
+        update_doc: bool = False,
+    ):
+        """
+        Run diff-run analysis to document changes since a boundary.
+
+        Parameters:
+        - since: Commit hash, tag, or date (YYYY-MM-DD)
+        - since_branch: Branch name (finds merge base)
+        - update_doc: Whether to update CODEBASE.md with changes
+        """
+        from codilay.change_report import ChangeReportGenerator
+        from codilay.diff_analyzer import DiffAnalyzer
+        from codilay.llm_client import LLMClient
+        from codilay.prompts import diff_run_analysis_prompt, diff_run_system_prompt
+
+        if not since and not since_branch:
+            raise HTTPException(
+                status_code=400,
+                detail="Must specify either 'since' or 'since_branch' parameter",
+            )
+
+        # Initialize analyzer
+        analyzer = DiffAnalyzer(target_path)
+        if not analyzer.is_git_repo:
+            raise HTTPException(status_code=400, detail="Target directory is not a git repository")
+
+        # Resolve boundary
+        boundary_result = analyzer.resolve_boundary(since=since, since_branch=since_branch)
+        if not boundary_result:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not resolve boundary: {since or since_branch}",
+            )
+
+        base_commit, boundary_type = boundary_result
+        boundary_ref = since or since_branch or base_commit
+
+        # Analyze changes
+        diff_result = analyzer.analyze(since=since, since_branch=since_branch)
+        if not diff_result:
+            raise HTTPException(status_code=500, detail="Failed to analyze changes")
+
+        if not diff_result.file_diffs:
+            return {
+                "summary": "No changes detected since the boundary.",
+                "changes": {
+                    "added": 0,
+                    "modified": 0,
+                    "deleted": 0,
+                    "renamed": 0,
+                    "commits": diff_result.commits_count,
+                },
+                "report_path": None,
+            }
+
+        # Load config and LLM
+        try:
+            cfg = CodiLayConfig.load(target_path)
+        except Exception:
+            cfg = CodiLayConfig.from_defaults()
+
+        settings = Settings.load()
+        settings.inject_env_vars()
+
+        if not cfg.provider:
+            cfg.provider = settings.default_provider
+        if not cfg.model:
+            cfg.model = settings.default_model
+
+        llm = LLMClient(cfg)
+
+        # Prepare LLM analysis
+        added_files = []
+        for f in diff_result.added_files:
+            added_files.append({"path": f.path, "content": f.full_content or ""})
+
+        modified_files = []
+        for f in diff_result.modified_files:
+            modified_files.append({"path": f.path, "diff": f.diff_content or ""})
+
+        deleted_files = []
+        for f in diff_result.deleted_files:
+            deleted_files.append({"path": f.path})
+
+        renamed_files = []
+        for f in diff_result.renamed_files:
+            renamed_files.append({"path": f.path, "old_path": f.old_path or "", "diff": f.diff_content or ""})
+
+        # Build prompts
+        sys_prompt = diff_run_system_prompt(cfg)
+        user_prompt = diff_run_analysis_prompt(
+            boundary_ref=boundary_ref,
+            boundary_type=boundary_type,
+            commits_count=diff_result.commits_count,
+            commit_messages=diff_result.commit_messages,
+            added_files=added_files,
+            modified_files=modified_files,
+            deleted_files=deleted_files,
+            renamed_files=renamed_files,
+            existing_sections={},
+            section_index=[],
+        )
+
+        # Call LLM
+        result = llm.call(sys_prompt, user_prompt)
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result.get("error"))
+
+        # Generate report
+        report_gen = ChangeReportGenerator(output_dir)
+        report_path = report_gen.generate_report(
+            analysis_result=result,
+            boundary_ref=boundary_ref,
+            boundary_type=boundary_type,
+            commits_count=diff_result.commits_count,
+            commit_messages=diff_result.commit_messages,
+        )
+
+        # Get LLM stats
+        stats = llm.get_usage_stats()
+
+        return {
+            "summary": result.get("summary", ""),
+            "changes": {
+                "added": len(diff_result.added_files),
+                "modified": len(diff_result.modified_files),
+                "deleted": len(diff_result.deleted_files),
+                "renamed": len(diff_result.renamed_files),
+                "commits": diff_result.commits_count,
+            },
+            "report_path": report_path,
+            "llm_usage": {
+                "calls": stats["total_calls"],
+                "input_tokens": stats["total_input_tokens"],
+                "output_tokens": stats["total_output_tokens"],
+            },
+        }
+
     # ── Feature 5: Triage feedback ────────────────────────────────
 
     class TriageFeedbackRequest(BaseModel):

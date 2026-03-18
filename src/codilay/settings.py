@@ -110,6 +110,9 @@ class Settings:
     export_default_format: str = "compact"  # compact | structured | narrative
     export_max_tokens: int = 100000
 
+    # Custom export presets (user-defined)
+    export_presets: Dict[str, Dict] = field(default_factory=dict)
+
     # Web UI defaults
     web_ui_port: int = 8765
     web_ui_auto_open_browser: bool = True
