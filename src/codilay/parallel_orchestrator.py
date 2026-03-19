@@ -106,6 +106,7 @@ class ParallelOrchestrator:
         target_path: str,
         ui,
         max_workers: int = 4,
+        state_path: Optional[str] = None,
     ):
         self.processor = processor
         self.wire_bus = wire_bus
@@ -115,6 +116,7 @@ class ParallelOrchestrator:
         self.target_path = target_path
         self.ui = ui
         self.max_workers = max_workers
+        self._state_path = state_path
 
         # Ensure progress callback is always present
         self._progress_callback = None
@@ -443,6 +445,16 @@ class ParallelOrchestrator:
                 if result.get("unpark"):
                     for up in result["unpark"]:
                         self._handle_unpark(up)
+
+                # Per-file checkpoint so Ctrl+C can be resumed
+                if self._state_path:
+                    self.state.open_wires = self.wire_bus.get_open_wires()
+                    self.state.closed_wires = self.wire_bus.get_closed_wires()
+                    self.state.section_index = self.docstore.get_section_index()
+                    self.state.section_contents = self.docstore.get_section_contents()
+                    processed_set = set(self.state.processed)
+                    self.state.queue = [f for f in self.state.queue if f not in processed_set]
+                    self.state.save(self._state_path)
 
             wires_opened = len(result.get("wires_opened", []))
             wires_closed = len(result.get("wires_closed", []))

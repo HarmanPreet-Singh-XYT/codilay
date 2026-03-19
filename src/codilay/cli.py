@@ -681,6 +681,9 @@ def run(ctx, target, scope):
         ui.phase("Phase 2 · Resuming — Skipping planning")
         ui.show_plan(state.queue, state.parked, {})
 
+    # Save queue to disk now so Ctrl+C during processing can be resumed
+    state.save(state_path)
+
     # ── Pre-run cost estimate ─────────────────────────────────────
     _show_cost_estimate(state.queue, llm, cfg, ui)
 
@@ -718,6 +721,7 @@ def run(ctx, target, scope):
             target_path=target,
             ui=ui,
             max_workers=cfg.max_workers,
+            state_path=state_path,
         )
 
         with Progress(
