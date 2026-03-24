@@ -7,7 +7,10 @@ parallel vs. which must be sequential.
 import os
 import re
 from collections import defaultdict, deque
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+
+if TYPE_CHECKING:
+    from codilay.language_detector import LanguageDetector
 
 
 class DependencyGraph:
@@ -20,11 +23,15 @@ class DependencyGraph:
 
     From this we derive processing tiers: files with no unprocessed
     dependencies can run in parallel within the same tier.
+
+    Pass a LanguageDetector to enable import extraction for languages
+    beyond the built-in set (Dart, Swift, Nim, Zig, etc.).
     """
 
-    def __init__(self, project_root: str, all_files: List[str]):
+    def __init__(self, project_root: str, all_files: List[str], language_detector: "Optional[LanguageDetector]" = None):
         self.project_root = project_root
         self.all_files = set(all_files)
+        self.language_detector = language_detector
         # Normalized lookup: basename -> [full relative paths]
         self._file_index = self._build_file_index(all_files)
 
@@ -206,11 +213,39 @@ class DependencyGraph:
                     queue.append(dep)
         return affected
 
+    def get_centrality_scores(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Compute per-file centrality metrics from the dependency graph.
+
+        Returns a dict mapping file path to:
+          - in_degree:   number of files that import this file (higher = more central)
+          - out_degree:  number of files this file imports
+          - centrality:  in_degree / total_files  (0.0 – 1.0)
+
+        High in-degree files are "load-bearing" — they should be documented
+        first so their context is available when dependents are processed.
+        High out-degree files are "orchestrators" — they depend on many others
+        and should be processed last.
+        """
+        n = len(self.all_files)
+        scores: Dict[str, Dict[str, Any]] = {}
+        for f in self.all_files:
+            in_deg = len(self.depended_by.get(f, set()) & self.all_files)
+            out_deg = len(self.depends_on.get(f, set()) & self.all_files)
+            scores[f] = {
+                "in_degree": in_deg,
+                "out_degree": out_deg,
+                "centrality": in_deg / n if n > 0 else 0.0,
+            }
+        return scores
+
     def get_stats(self) -> Dict[str, Any]:
         """Return statistics about the dependency graph."""
         tiers = self.get_tiers()
         clusters = self.get_dependency_clusters()
         total_edges = sum(len(deps) for deps in self.depends_on.values())
+        centrality = self.get_centrality_scores()
+        top_central = sorted(centrality.items(), key=lambda x: x[1]["in_degree"], reverse=True)[:5]
 
         return {
             "total_files": len(self.all_files),
@@ -223,6 +258,7 @@ class DependencyGraph:
             "isolated_files": len(
                 [f for f in self.all_files if not self.depends_on.get(f) and not self.depended_by.get(f)]
             ),
+            "top_central_files": [(f, s["in_degree"]) for f, s in top_central],
         }
 
     # ── Import extraction ────────────────────────────────────────
@@ -230,7 +266,10 @@ class DependencyGraph:
     def _extract_imports(self, file_path: str, content: str) -> List[str]:
         """
         Extract raw import strings from file content.
-        Supports Python, JS/TS, Go, Rust, Java, C/C++, Ruby, PHP.
+
+        Hand-tuned extractors handle Python, JS/TS, Go, Rust, Java, C/C++,
+        Ruby, PHP, Elixir. All other languages fall through to the optional
+        LanguageDetector which uses LLM-learned (cached) patterns.
         """
         ext = os.path.splitext(file_path)[1].lower()
         imports: List[str] = []
@@ -253,6 +292,10 @@ class DependencyGraph:
             imports.extend(self._extract_php_imports(content))
         elif ext in (".ex", ".exs"):
             imports.extend(self._extract_elixir_imports(content))
+        elif self.language_detector is not None:
+            # Delegate to LanguageDetector for languages with cached LLM patterns
+            # (Dart, Swift, Nim, Zig, Julia, Elm, Haskell, etc.)
+            imports.extend(self.language_detector.extract_imports(ext, content))
 
         return imports
 

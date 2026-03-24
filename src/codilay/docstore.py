@@ -1,6 +1,7 @@
 """Docstore — section-based markdown document management with git awareness."""
 
 import re
+import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -10,6 +11,10 @@ class DocStore:
         self._sections: Dict[str, Dict[str, Any]] = {}
         self._order_counter = 0
         self._doc_title = "Codebase Reference"
+        # Write lock: allows concurrent reads but serializes writes so
+        # parallel workers (different clusters) can safely write their own
+        # sections without corrupting _order_counter or _sections.
+        self._write_lock = threading.Lock()
 
     def initialize_skeleton(self, title: str, suggested_sections: List[str]):
         self._doc_title = title
@@ -41,32 +46,34 @@ class DocStore:
         deps: List[str] = None,
         insert_after: str = None,
     ):
-        if insert_after and insert_after in self._sections:
-            order = self._sections[insert_after]["order"] + 0.5
-        else:
-            order = self._order_counter
-            self._order_counter += 1
+        with self._write_lock:
+            if insert_after and insert_after in self._sections:
+                order = self._sections[insert_after]["order"] + 0.5
+            else:
+                order = self._order_counter
+                self._order_counter += 1
 
-        self._sections[section_id] = {
-            "title": title,
-            "content": content,
-            "tags": tags or [],
-            "file": file,
-            "deps": deps or [],
-            "wires_closed": [],
-            "order": order,
-        }
+            self._sections[section_id] = {
+                "title": title,
+                "content": content,
+                "tags": tags or [],
+                "file": file,
+                "deps": deps or [],
+                "wires_closed": [],
+                "order": order,
+            }
 
     def patch_section(self, section_id: str, update_type: str, content: str):
-        if section_id not in self._sections:
-            return
-        sec = self._sections[section_id]
-        if update_type == "replace":
-            sec["content"] = content
-        elif update_type == "append":
-            sec["content"] = sec["content"] + "\n\n" + content if sec["content"] else content
-        elif update_type == "insert_link":
-            sec["content"] = sec["content"] + "\n" + content if sec["content"] else content
+        with self._write_lock:
+            if section_id not in self._sections:
+                return
+            sec = self._sections[section_id]
+            if update_type == "replace":
+                sec["content"] = content
+            elif update_type == "append":
+                sec["content"] = sec["content"] + "\n\n" + content if sec["content"] else content
+            elif update_type == "insert_link":
+                sec["content"] = sec["content"] + "\n" + content if sec["content"] else content
 
     def get_relevant_sections(
         self,
@@ -130,17 +137,18 @@ class DocStore:
         return {sid: sec.get("content", "") for sid, sec in self._sections.items()}
 
     def load_from_state(self, section_index: Dict, section_contents: Dict):
-        for sid, meta in section_index.items():
-            self._sections[sid] = {
-                "title": meta.get("title", sid),
-                "content": section_contents.get(sid, ""),
-                "tags": meta.get("tags", []),
-                "file": meta.get("file", ""),
-                "deps": meta.get("deps", []),
-                "wires_closed": meta.get("wires_closed", []),
-                "order": self._order_counter,
-            }
-            self._order_counter += 1
+        with self._write_lock:
+            for sid, meta in section_index.items():
+                self._sections[sid] = {
+                    "title": meta.get("title", sid),
+                    "content": section_contents.get(sid, ""),
+                    "tags": meta.get("tags", []),
+                    "file": meta.get("file", ""),
+                    "deps": meta.get("deps", []),
+                    "wires_closed": meta.get("wires_closed", []),
+                    "order": self._order_counter,
+                }
+                self._order_counter += 1
 
     # ── Git-aware section operations ─────────────────────────────
 

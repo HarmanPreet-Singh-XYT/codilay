@@ -1340,9 +1340,12 @@ def create_app(
 
             from codilay.audit_manager import AuditManager
             from codilay.llm_client import LLMClient
+            from codilay.scanner import Scanner
 
             llm = LLMClient(cfg)
             am = AuditManager(llm, output_dir)
+
+            scanner = Scanner(target_path, cfg, output_dir=output_dir) if req.mode == "active" else None
 
             state = _load_state()
             links = _load_links()
@@ -1355,7 +1358,7 @@ def create_app(
                 links.get("open", []),
                 links.get("closed", []),
                 target_path,
-                None,  # scanner fallback for now
+                scanner,
             )
             return result
         except Exception as e:

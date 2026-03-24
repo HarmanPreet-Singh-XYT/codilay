@@ -712,6 +712,22 @@ def run(ctx, target, scope):
                 if content is not None:
                     file_contents[file_path] = content
 
+        # Language detection: learn import patterns for any extensions not
+        # covered by built-in extractors (Dart, Swift, Nim, Zig, etc.).
+        # One LLM call per unknown language, cached to ~/.codilay/language_patterns.json.
+        from codilay.language_detector import LanguageDetector
+
+        lang_detector = LanguageDetector(llm_client=llm)
+        unknown_exts = {}
+        for file_path, content in file_contents.items():
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext and not lang_detector.has_builtin_extractor(ext) and lang_detector.get_language(ext):
+                if ext not in unknown_exts:
+                    unknown_exts[ext] = content  # one sample per ext is enough
+        if unknown_exts:
+            ui.info(f"  Learning import patterns for: {', '.join(unknown_exts.keys())} ...")
+            lang_detector.learn_unknown_languages(unknown_exts)
+
         orchestrator = ParallelOrchestrator(
             processor=processor,
             wire_bus=wire_bus,
@@ -722,6 +738,7 @@ def run(ctx, target, scope):
             ui=ui,
             max_workers=cfg.max_workers,
             state_path=state_path,
+            language_detector=lang_detector,
         )
 
         with Progress(

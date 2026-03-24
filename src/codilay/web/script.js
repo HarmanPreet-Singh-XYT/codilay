@@ -1231,7 +1231,8 @@ async function renderAuditView() {
             <div>
                 <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;">System Audit</h2>
                 <p style="color:var(--text-muted);font-size:13px;max-width:600px;">
-                    Run AI-powered audits against your architecture. Passive mode uses existing context (fast). Active mode deeply inspects files (thorough).
+                    <strong>Plan mode</strong> reads CODEBASE.md to surface risk areas fast — produces suspicions, not findings.
+                    <strong>Deep mode</strong> triages relevant files then reads actual source code to produce line-referenced findings.
                 </p>
             </div>
             <div style="display:flex; gap:12px; background:var(--bg-secondary); padding:16px; border-radius:8px; border:1px solid var(--border);">
@@ -1247,8 +1248,8 @@ async function renderAuditView() {
                 <div>
                     <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Mode</label>
                     <select id="audit-mode-select" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
-                        <option value="passive">Passive (Fast)</option>
-                        <option value="active">Active (Deep)</option>
+                        <option value="passive">Plan (Doc-based, Fast)</option>
+                        <option value="active">Deep (Source Code, Thorough)</option>
                     </select>
                 </div>
                 <div style="display:flex; align-items:flex-end;">
@@ -1296,9 +1297,10 @@ async function loadAuditHistory() {
             <div class="tool-card" style="cursor:pointer;" onclick="viewAuditReport('${escAttr(run.report_file)}')">
                 <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                     <span style="font-weight:600;capitalize;">${escHtml(run.type)}</span>
-                    <span style="font-size:11px;color:var(--text-muted);background:var(--bg);padding:2px 6px;border-radius:4px;">${escHtml(run.mode)}</span>
+                    <span style="font-size:11px;color:var(--text-muted);background:var(--bg);padding:2px 6px;border-radius:4px;">${run.mode === 'active' ? 'deep' : 'plan'}</span>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted);"><i data-lucide="calendar" style="width:12px;height:12px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i>${escHtml(date)}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;"><i data-lucide="calendar" style="width:12px;height:12px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i>${escHtml(date)}</div>
+                ${run.files_audited ? `<div style="font-size:11px;color:var(--text-muted);"><i data-lucide="files" style="width:11px;height:11px;display:inline-block;vertical-align:-2px;margin-right:3px;"></i>${escHtml(String(run.files_audited))} files audited</div>` : ''}
             </div>`;
         });
         html += '</div>';
@@ -1368,25 +1370,34 @@ async function viewAuditReport(filename) {
 
 function renderAuditFindings(markdown) {
     if (!markdown) return '';
-    
-    const blocks = markdown.split(/\n?(?=FINDING:)/g);
-    if (blocks.length <= 1 && !markdown.includes('FINDING:')) {
-        return renderMarkdown(markdown);
+
+    // Passive mode (audit plan) uses CONCERN: blocks — render as markdown with a banner
+    const isPlanMode = markdown.includes('documentation only') || markdown.includes('Audit Plan') || markdown.includes('CONCERN:');
+    if (!markdown.includes('FINDING:')) {
+        const banner = isPlanMode
+            ? `<div style="margin-bottom:20px;padding:12px 16px;background:var(--bg-secondary);border-left:3px solid var(--yellow,#f5a623);border-radius:4px;font-size:12px;color:var(--text-muted);">
+                <strong>Audit Plan</strong> — These are risk areas identified from documentation, not verified findings from source code.
+                Run in <strong>Deep mode</strong> to get line-referenced findings from actual code.
+               </div>`
+            : '';
+        return banner + renderMarkdown(markdown);
     }
-    
+
+    const blocks = markdown.split(/\n?(?=FINDING:)/g);
+
     let findings = [];
     let headerHtml = '';
-    
+
     if (blocks[0] && !blocks[0].trim().startsWith('FINDING:')) {
         headerHtml = `<div style="margin-bottom: 24px; color: var(--text-muted); font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">${renderMarkdown(blocks[0])}</div>`;
         blocks.shift();
     }
-    
+
     blocks.forEach(block => {
         const lines = block.split('\n');
-        let finding = { title: '', severity: 'LOW', file: '', wire: '', evidence: '', impact: '', fix: '' };
+        let finding = { title: '', severity: 'LOW', file: '', line: '', wire: '', evidence: '', impact: '', fix: '' };
         let currentField = '';
-        
+
         lines.forEach(line => {
             const trimmed = line.trim();
             if (trimmed.startsWith('FINDING:')) {
@@ -1398,6 +1409,9 @@ function renderAuditFindings(markdown) {
             } else if (trimmed.startsWith('File:')) {
                 finding.file = trimmed.replace('File:', '').trim();
                 currentField = 'file';
+            } else if (trimmed.startsWith('Line:')) {
+                finding.line = trimmed.replace('Line:', '').trim();
+                currentField = 'line';
             } else if (trimmed.startsWith('Wire:')) {
                 finding.wire = trimmed.replace('Wire:', '').trim();
                 currentField = 'wire';
@@ -1468,7 +1482,7 @@ function renderAuditFindings(markdown) {
                     <div style="flex:1; pointer-events:none;">
                         <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                             <span class="severity-badge ${sevClass}">${finding.severity}</span>
-                            <span style="font-size:11px; color:var(--text-muted); opacity:0.6;">${escHtml(finding.file)}</span>
+                            <span style="font-size:11px; color:var(--text-muted); opacity:0.6;">${escHtml(finding.file)}${finding.line ? `<span style="margin-left:4px;padding:1px 5px;background:var(--bg-secondary);border-radius:3px;font-family:monospace;">L${escHtml(finding.line)}</span>` : ''}</span>
                         </div>
                         <h4 class="finding-title">${escHtml(finding.title)}</h4>
                     </div>
@@ -1480,7 +1494,7 @@ function renderAuditFindings(markdown) {
                         <div class="meta-item" style="cursor:default">
                             <div style="flex:1">
                                 <span class="meta-label">Source File</span>
-                                <span class="meta-value" onclick="openFile('${escAttr(finding.file)}')"><i data-lucide="file-text" style="width:12px;height:12px"></i> ${escHtml(finding.file)}</span>
+                                <span class="meta-value" onclick="openFile('${escAttr(finding.file)}')"><i data-lucide="file-text" style="width:12px;height:12px"></i> ${escHtml(finding.file)}${finding.line ? ` <span style="font-family:monospace;font-size:11px;color:var(--text-muted);">line ${escHtml(finding.line)}</span>` : ''}</span>
                             </div>
                         </div>
                         ${finding.wire ? `

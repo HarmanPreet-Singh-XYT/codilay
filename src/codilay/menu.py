@@ -1687,9 +1687,10 @@ def _menu_tool_audit(settings: Settings) -> Optional[dict]:
 
     console.print(
         Panel(
-            "The Audit system evaluates the CodiLay wire graph and doc context\n"
-            "for security vulnerabilities, performance bottlenecks, architecture flaws,\n"
-            "and more. Passive mode is fast. Active mode reads specific files deeply.",
+            "Two modes:\n"
+            "  [bold]plan[/bold]   — reads CODEBASE.md to surface risk areas (fast). Produces suspicions, not findings.\n"
+            "  [bold]active[/bold] — triages relevant files then reads actual source code.\n"
+            "           Produces line-referenced findings with real evidence.",
             border_style="cyan",
         )
     )
@@ -1703,7 +1704,7 @@ def _menu_tool_audit(settings: Settings) -> Optional[dict]:
     if _is_back(audit_type):
         return None
 
-    mode = Prompt.ask("Mode (passive / active)", choices=["passive", "active"], default="passive")
+    mode = Prompt.ask("Mode", choices=["passive", "active"], default="passive")
     if _is_back(mode):
         return None
 

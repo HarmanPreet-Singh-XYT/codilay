@@ -1,36 +1,39 @@
 """
-Parallel Orchestrator — tier-based parallel file processing engine.
+Parallel Orchestrator — cluster-aware tier-based parallel processing engine.
 
 Architecture:
+  Static import graph → dependency clusters (independent subsystems)
+  → within each cluster: topological tiers
+  → tier 0 of each cluster runs in parallel (true concurrent LLM calls)
+
                     ┌─────────────────────┐
                     │   Central Wire Bus   │
-                    │  (shared, locked)    │
+                    │  (thread-safe lock)  │
                     └──────────┬──────────┘
                                │
-          ┌────────────────────┼────────────────────┐
-          │                    │                    │
-    ┌─────▼─────┐        ┌─────▼─────┐       ┌─────▼─────┐
-    │ Worker 1  │        │ Worker 2  │       │ Worker 3  │
-    │ (Thread)  │        │ (Thread)  │       │ (Thread)  │
-    └─────┬─────┘        └─────┬─────┘       └─────┬─────┘
-          │                    │                    │
-          └────────────────────▼────────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │   DocStore (locked)  │
-                    │  (section per file)  │
-                    └─────────────────────┘
+    Cluster α          Cluster β          Cluster γ
+    ┌─────────┐        ┌─────────┐        ┌─────────┐
+    │Worker 1 │        │Worker 2 │        │Worker 3 │
+    │(Thread) │        │(Thread) │        │(Thread) │
+    └────┬────┘        └────┬────┘        └────┬────┘
+         │                  │                  │
+         └──────────────────▼──────────────────┘
+                            │
+              ┌─────────────▼─────────────┐
+              │  DocStore (internal lock)  │
+              │  (section per file, safe   │
+              │   for concurrent writes)   │
+              └───────────────────────────┘
 
 Processing flow:
-1. Build dependency graph from static import analysis
-2. Compute processing tiers (topological sort)
-3. For each tier:
-   a. All files in the tier run in parallel (thread pool)
-   b. Each worker gets a frozen wire snapshot at start
-   c. Workers write to docstore through locks
-   d. At tier boundary: sync, reconcile wires, save state
-4. Process parked files sequentially with full context
-5. Sequential finalize pass reviews parallel-generated sections
+1. Build dependency graph from static import analysis (no LLM)
+2. Detect independent clusters (weakly connected components)
+3. Sort files within each tier by centrality (most depended-on first)
+4. Process shared-core files (high centrality across clusters) first
+5. Per-tier parallel execution — workers call LLM concurrently
+   (DocStore and WireBus are thread-safe; no global lock during LLM calls)
+6. Process parked files sequentially with full context
+7. Sequential finalize pass reviews parallel-generated sections
 """
 
 import os
@@ -107,6 +110,7 @@ class ParallelOrchestrator:
         ui,
         max_workers: int = 4,
         state_path: Optional[str] = None,
+        language_detector=None,
     ):
         self.processor = processor
         self.wire_bus = wire_bus
@@ -117,12 +121,15 @@ class ParallelOrchestrator:
         self.ui = ui
         self.max_workers = max_workers
         self._state_path = state_path
+        self.language_detector = language_detector
 
         # Ensure progress callback is always present
         self._progress_callback = None
 
-        # Thread-safe docstore lock
-        self._docstore_lock = threading.RLock()
+        # Lock for mutable agent state (processed list, hashes, queue, checkpoints).
+        # NOTE: NOT held during LLM calls — DocStore and WireBus are internally
+        # thread-safe, so workers call processor.process_file() concurrently.
+        self._state_lock = threading.Lock()
 
         # Initialize progress tracking attributes
         self._completed_count = 0
@@ -170,12 +177,14 @@ class ParallelOrchestrator:
         start_time = time.time()
         self._stats["total_files"] = len(files_to_process)
 
-        # Phase 1: Build dependency graph
+        # Phase 1: Build dependency graph (static import analysis — no LLM)
         self.ui.info("  Building dependency graph from imports...")
-        dep_graph = DependencyGraph(self.target_path, files_to_process)
+        dep_graph = DependencyGraph(self.target_path, files_to_process, language_detector=self.language_detector)
         dep_graph.build(file_contents)
 
         graph_stats = dep_graph.get_stats()
+        centrality = dep_graph.get_centrality_scores()
+
         self.ui.info(
             f"  Dependency graph: {graph_stats['total_edges']} edges, "
             f"{graph_stats['num_tiers']} tiers, "
@@ -183,8 +192,21 @@ class ParallelOrchestrator:
             f"max parallelism: {graph_stats['max_parallelism']}"
         )
 
-        # Phase 2: Compute tiers
+        # Log top central files so user can see the shared-core
+        top_central = graph_stats.get("top_central_files", [])
+        if top_central and top_central[0][1] > 0:
+            top_names = ", ".join(f"{os.path.basename(f)} ({n})" for f, n in top_central[:3])
+            self.ui.info(f"  Shared core (highest in-degree): {top_names}")
+
+        # Log cluster structure for multi-cluster codebases
+        clusters = dep_graph.get_dependency_clusters()
+        if len(clusters) > 1:
+            cluster_summary = ", ".join(str(len(c)) for c in sorted(clusters, key=len, reverse=True)[:5])
+            self.ui.info(f"  Cluster sizes: [{cluster_summary}] files — processing independently")
+
+        # Phase 2: Compute tiers, sorted by centrality within each tier
         tiers = dep_graph.get_tiers()
+        tiers = self._sort_tiers_by_centrality(tiers, centrality)
         self._stats["tier_count"] = len(tiers)
         self._stats["max_parallelism"] = graph_stats["max_parallelism"]
 
@@ -257,6 +279,29 @@ class ParallelOrchestrator:
             "tier_results": tier_results,
             "dep_graph_stats": graph_stats,
         }
+
+    # ── Tier ordering ────────────────────────────────────────────
+
+    def _sort_tiers_by_centrality(
+        self,
+        tiers: list,
+        centrality: dict,
+    ) -> list:
+        """
+        Within each tier, sort files so that higher in-degree (more depended-on)
+        files are processed first. This matters most for sequential tiers: when
+        processing is serialized, a high-centrality file documented early gives
+        richer RAG context to all subsequent files that import it.
+        """
+        sorted_tiers = []
+        for tier in tiers:
+            sorted_tier = sorted(
+                tier,
+                key=lambda f: centrality.get(f, {}).get("in_degree", 0),
+                reverse=True,
+            )
+            sorted_tiers.append(sorted_tier)
+        return sorted_tiers
 
     # ── Tier processing ──────────────────────────────────────────
 
@@ -409,18 +454,13 @@ class ParallelOrchestrator:
             )
 
         try:
-            # The Processor.process_file call does:
-            # 1. Reads wire state (through wire_bus — thread safe)
-            # 2. Reads relevant sections (through docstore — need lock)
-            # 3. Calls LLM (thread safe — HTTP client)
-            # 4. Applies result to docstore + wire_bus (need locks)
-            #
-            # We use a lock around the docstore operations.
-            # Wire operations go through WireBus which has its own lock.
-            # LLM calls are naturally concurrent (separate HTTP connections).
-
-            with self._docstore_lock:
-                result = self.processor.process_file(file_path, content)
+            # Processor.process_file is safe to call concurrently:
+            # - Wire reads/writes go through WireBus (thread-safe, has its own lock)
+            # - DocStore reads are CPython-GIL-safe for concurrent dict access
+            # - DocStore writes are serialized by DocStore._write_lock internally
+            # - LLM calls are naturally parallel (independent HTTP connections)
+            # No global lock held here — this is where real parallelism happens.
+            result = self.processor.process_file(file_path, content)
 
             if result is None:
                 return WorkerResult(
@@ -431,17 +471,15 @@ class ParallelOrchestrator:
                     confidence=confidence,
                 )
 
-            # Track in state
-            with self._docstore_lock:
+            # Only lock for mutable agent state (not docstore or wire bus)
+            with self._state_lock:
                 if file_path not in self.state.processed:
                     self.state.processed.append(file_path)
 
-                # Store file hash
                 file_hash = self.scanner.get_file_hash(full_path)
                 if file_hash:
                     self.state.file_hashes[file_path] = file_hash
 
-                # Check for unparked files
                 if result.get("unpark"):
                     for up in result["unpark"]:
                         self._handle_unpark(up)
@@ -485,24 +523,19 @@ class ParallelOrchestrator:
         """
         Synchronize state at a tier boundary.
 
-        This is the safety net — after all workers in a tier complete,
-        we reconcile wire state, save a checkpoint, and prepare context
-        for the next tier.
+        All workers have finished by the time this is called (ThreadPoolExecutor
+        has joined them), so no concurrent mutations are in flight. No lock needed.
         """
-        with self._docstore_lock:
-            # 1. Reconcile wire state into agent state
-            self.state.open_wires = self.wire_bus.get_open_wires()
-            self.state.closed_wires = self.wire_bus.get_closed_wires()
-            self.state.section_index = self.docstore.get_section_index()
-            self.state.section_contents = self.docstore.get_section_contents()
-
-            # 2. Remove processed files from queue
-            processed_set = set(self.state.processed)
-            self.state.queue = [f for f in self.state.queue if f not in processed_set]
+        self.state.open_wires = self.wire_bus.get_open_wires()
+        self.state.closed_wires = self.wire_bus.get_closed_wires()
+        self.state.section_index = self.docstore.get_section_index()
+        self.state.section_contents = self.docstore.get_section_contents()
+        processed_set = set(self.state.processed)
+        self.state.queue = [f for f in self.state.queue if f not in processed_set]
 
     def save_checkpoint(self, state_path: str):
-        """Save a crash-recovery checkpoint. Thread-safe."""
-        with self._docstore_lock:
+        """Save a crash-recovery checkpoint."""
+        with self._state_lock:
             self.state.open_wires = self.wire_bus.get_open_wires()
             self.state.closed_wires = self.wire_bus.get_closed_wires()
             self.state.section_index = self.docstore.get_section_index()
