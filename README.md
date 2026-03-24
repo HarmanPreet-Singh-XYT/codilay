@@ -163,13 +163,37 @@ codilay watch . -v
 ```
 
 ### 🧩 IDE Integration (VSCode Extension)
-A VSCode extension that surfaces documentation inline alongside the file you're editing. Features include:
-- **Sidebar tree view** of all documented sections
-- **Webview panel** showing full documentation for the active file
-- **Inline decorations** highlighting documented symbols
-- **Quick commands** for asking questions, viewing the graph, and searching conversations
+A VSCode extension that surfaces documentation inline alongside the file you're editing. Requires a running `codilay serve .` server.
 
-Install from `vscode-extension/` directory — see the extension README for details.
+**Sidebar panels (Activity Bar):**
+- **Documentation Sections** — tree view of all documented sections; click any to open
+- **Dependencies** — wires for the currently active file, auto-updates as you switch files
+- **Team Knowledge** — collapsible Facts / Decisions / Conventions pulled from team memory
+
+**Status bar:** `$(book) N sections · N open wires` in the bottom-right, refreshes every 60 seconds.
+
+**Commands (Command Palette):**
+
+| Command | What it does |
+|:---|:---|
+| `CodiLay: Show Documentation Panel` | Open full `CODEBASE.md` in a side panel |
+| `CodiLay: Show Documentation for Current File` | Show the doc section for the active file |
+| `CodiLay: Ask a Question About This Code` | Chat with CodiLay — follow-ups continue the same conversation |
+| `CodiLay: New Conversation` | Reset the chat session |
+| `CodiLay: Search Past Conversations` | Full-text search across chat history |
+| `CodiLay: Show Documentation Diff` | What changed in docs since last run |
+| `CodiLay: Browse Commit Docs` | Pick a commit from a QuickPick list and read its doc |
+| `CodiLay: Show Dependency Graph` | Node/edge summary (full graph in the web UI) |
+| `CodiLay: Add Team Fact` | Add a fact to team memory with category picker |
+| `CodiLay: Run Audit` | Pick audit type + depth, run inline and read the report |
+| `CodiLay: Open Web UI in Browser` | Open `codilay serve` in your default browser |
+| `CodiLay: Refresh Documentation` | Reload all sidebar panels and status bar |
+
+**Right-click menus:** "CodiLay: Annotate This File" appears in both the Explorer context menu and the editor context menu. If text is selected when triggered from the editor, the line range is captured automatically.
+
+**Inline hints:** A subtle italic decoration on line 1 shows the section title for the active file (toggle with `codilay.inlineHints` setting).
+
+Install from `vscode-extension/` — run `npm install && npm run compile` inside the directory.
 
 ### 🤖 Interactive AI Context Export
 Export your documentation in a precise, token-efficient format tailored for LLM context windows. CodiLay supports **LLM-guided customization**, allowing you to describe exactly what you need in natural language.
