@@ -587,20 +587,23 @@ The hook runs `codilay commit-doc` silently in the background after each commit 
 **Browsable in the Web UI** — the **Commits** tab shows all generated docs as cards (hash, date, commit message), click any to read the full doc with visual score bars for metrics. The backfill controls are also available directly from the UI.
 
 ### 🛡️ System Audits (Architecture & Security)
-Run AI-powered audits against your architecture, security, performance, and code quality. Passive mode uses existing context (fast), while active mode deeply inspects files (thorough). 
+Run AI-powered audits against your architecture, security, performance, and code quality. CodiLay supports **60+ audit types** across two modes:
 
-CodiLay supports **60+ different audit types**, including:
+- **Plan mode** (`--mode passive`) — reads CODEBASE.md to surface risk areas and a prioritized file list fast. Produces *suspicions to investigate*, not verified findings.
+- **Deep mode** (`--mode active`) — triages relevant files using the dependency graph, then reads actual source code and produces **line-referenced findings** with real evidence and exact code quotes.
+
+Audit categories include:
 - **Security**: XSS, Auth flows, Secrets, Crypto, Container/Cloud security, Pentest.
 - **Architecture**: Scalability, Caching, DB Efficiency, API Boundaries.
 - **Quality**: Readability, Chaos Engineering, Reliability, SEO.
 - **Compliance**: GDPR, License violations, Data Governance.
 
 ```bash
-# Run a passive security audit
+# Audit plan — fast, doc-based risk areas
 codilay audit . --type security --mode passive
 
-# Run an active architecture audit
-codilay audit . --type architecture --mode active
+# Deep audit — reads source, produces line-referenced findings
+codilay audit . --type security --mode active
 ```
 Audits can be managed and viewed from the **CLI**, the **Interactive Menu**, or the **Web UI**.
 
@@ -718,8 +721,8 @@ Place a `codilay.config.json` in your root for project-specific behavior:
 | **Chunking** | `tokenThreshold` | `int` | Files larger than this (in tokens) are split into chunks. |
 | | `maxChunkTokens` | `int` | Target token count for each detail chunk. |
 | | `overlapRatio` | `float` | Contextual overlap between chunks (e.g. `0.10` for 10%). |
-| **Parallel** | `enabled` | `bool` | Enable/disable concurrent processing of files within the same tier. |
-| | `maxWorkers` | `int` | Max number of concurrent LLM calls. |
+| **Parallel** | `enabled` | `bool` | Enable/disable concurrent LLM calls. Workers run truly in parallel — DocStore and WireBus are internally thread-safe. |
+| | `maxWorkers` | `int` | Max concurrent LLM calls. Files are ordered by dependency centrality; independent clusters are identified and logged. |
 
 ### 🌍 Multi-Provider Support
 CodiLay is provider-agnostic. Power it with:
