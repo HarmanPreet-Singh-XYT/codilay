@@ -33,3 +33,7 @@ htmlcov/
 
 # Project
 planning.md
+
+**/node_modules/**
+/node_modules/**
+/vscode-extension/node_modules/

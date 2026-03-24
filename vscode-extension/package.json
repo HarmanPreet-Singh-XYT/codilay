@@ -2,7 +2,7 @@
   "name": "codilay",
   "displayName": "CodiLay",
   "description": "AI-powered codebase documentation inline in your editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "codilay",
   "license": "MIT",
   "engines": {
@@ -45,10 +45,57 @@
         "title": "CodiLay: Search Past Conversations"
       },
       {
+        "command": "codilay.showDocDiff",
+        "title": "CodiLay: Show Documentation Diff"
+      },
+      {
+        "command": "codilay.showCommitDocs",
+        "title": "CodiLay: Browse Commit Docs"
+      },
+      {
+        "command": "codilay.annotateFile",
+        "title": "CodiLay: Annotate This File"
+      },
+      {
+        "command": "codilay.addTeamFact",
+        "title": "CodiLay: Add Team Fact"
+      },
+      {
+        "command": "codilay.runAudit",
+        "title": "CodiLay: Run Audit"
+      },
+      {
+        "command": "codilay.newConversation",
+        "title": "CodiLay: New Conversation"
+      },
+      {
+        "command": "codilay.openInBrowser",
+        "title": "CodiLay: Open Web UI in Browser"
+      },
+      {
         "command": "codilay.refresh",
         "title": "CodiLay: Refresh Documentation"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "codilay.annotateFile",
+          "group": "codilay@1",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "codilay.showFileDoc",
+          "group": "codilay@1"
+        },
+        {
+          "command": "codilay.annotateFile",
+          "group": "codilay@2"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
