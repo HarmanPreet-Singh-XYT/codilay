@@ -21,6 +21,12 @@ Tools & Automation:
     codilay schedule set . '0 2 * * *'   Cron-based auto re-runs
     codilay graph .                      Filtered dependency graph
 
+Platform Integration:
+    codilay auth login                   Log in to CodiLay platform
+    codilay auth status                  Check platform connection status
+    codilay auth logout                  Log out from platform
+    codilay auth config --no-sync        Disable automatic sync
+
 Collaboration:
     codilay team facts .                 View shared team facts
     codilay team add-fact .              Add a team fact
@@ -133,6 +139,12 @@ def cli(ctx, config, output, model, provider, base_url, verbose):
         codilay setup                    First-time setup wizard
         codilay config                   View current settings
         codilay keys                     Manage API keys
+
+    \b
+    Platform Integration:
+        codilay auth login               Log in to CodiLay platform
+        codilay auth status              Check platform connection
+        codilay auth logout              Log out from platform
 
     \b
     Tools & Automation:
@@ -963,6 +975,84 @@ def run(ctx, target, scope):
         f"{stats['total_input_tokens']:,} input tokens, "
         f"{stats['total_output_tokens']:,} output tokens{cost_str}"
     )
+
+    # ── Platform sync ────────────────────────────────────────────
+    _sync_to_platform(target, output_dir, ui)
+
+
+def _sync_to_platform(target: str, output_dir: str, ui) -> None:
+    """
+    Sync generated docs to the CodiLay platform if configured.
+
+    This runs after doc generation is complete and never blocks or
+    crashes the CLI. All errors are caught and reported as warnings.
+    """
+    try:
+        from codilay.platform_client import PlatformClient
+        from codilay.platform_settings import PlatformSettings
+
+        settings = PlatformSettings.load()
+
+        # Skip if not logged in or sync disabled
+        if not settings.is_logged_in():
+            return
+        if not settings.sync:
+            return
+
+        # Get git info if available
+        commit_sha = None
+        branch = None
+        try:
+            git = GitTracker(target)
+            if git.is_git_repo():
+                commit_sha = git.get_current_commit()
+                branch = git.get_current_branch()
+        except Exception:
+            pass
+
+        # Derive repo slug from directory name
+        repo_slug = os.path.basename(os.path.abspath(target))
+
+        # Check org slug
+        if not settings.org_slug:
+            ui.warn("Platform sync skipped: no organization configured. Run 'codilay auth config --org <slug>'")
+            return
+
+        # Find output files
+        from pathlib import Path
+
+        codebase_md = Path(output_dir) / "CODEBASE.md"
+        links_json = Path(output_dir) / "links.json"
+        state_json = Path(output_dir) / "state.json"
+
+        if not codebase_md.exists():
+            ui.warn("Platform sync skipped: CODEBASE.md not found")
+            return
+
+        # Sync to platform
+        ui.phase("Syncing to CodiLay platform...")
+        client = PlatformClient(settings)
+
+        run = client.sync_run(
+            org_slug=settings.org_slug,
+            repo_slug=repo_slug,
+            codebase_md_path=codebase_md,
+            commit_sha=commit_sha,
+            branch=branch,
+            links_json_path=links_json if links_json.exists() else None,
+            state_json_path=state_json if state_json.exists() else None,
+        )
+
+        run_id = run.get("id", "unknown")
+        run_id_short = str(run_id)[:8] if run_id != "unknown" else "unknown"
+        ui.success(f"Synced to platform (run {run_id_short})")
+
+    except ImportError:
+        # httpx not installed — silently skip
+        pass
+    except Exception as e:
+        # Never crash on sync failure
+        ui.warn(f"Platform sync failed (non-fatal): {e}")
 
 
 def _show_cost_estimate(queue: list, llm, cfg, ui) -> None:
@@ -4314,6 +4404,220 @@ def commit_doc_command(
     except RuntimeError as e:
         if not silent:
             ui.error(str(e))
+
+
+# ─── Auth group (Platform Integration) ───────────────────────────────────────
+
+
+@cli.group("auth")
+def auth_group():
+    """Manage CodiLay platform authentication."""
+
+
+@auth_group.command("login")
+@click.option("--key", "-k", default=None, help="CodiLay API key (starts with cdk_)")
+@click.option("--org", "-o", default=None, help="Organization slug")
+@click.option(
+    "--api-url",
+    default="http://localhost:8000",
+    help="Platform API base URL (default: http://localhost:8000)",
+)
+@click.option(
+    "--proxy-url",
+    default="http://localhost:8001",
+    help="Token proxy base URL (default: http://localhost:8001)",
+)
+def auth_login(key, org, api_url, proxy_url):
+    """
+    Log in to the CodiLay platform.
+
+    \b
+    Authenticates with a CodiLay API key and stores credentials locally.
+    The API key is used for syncing docs to the platform and routing
+    LLM requests through the token proxy.
+
+    \b
+    Examples:
+        codilay auth login --key cdk_xxxxxxxxxxxxx
+        codilay auth login --key cdk_xxx --org my-org
+        codilay auth login --key cdk_xxx --api-url https://api.codilay.dev
+    """
+    from codilay.platform_client import PlatformClient
+    from codilay.platform_settings import PlatformSettings
+    from codilay.ui import UI
+
+    ui = UI(console, False)
+
+    # Prompt for API key if not provided
+    if not key:
+        ui.info("Enter your CodiLay API key (starts with 'cdk_'):")
+        key = click.prompt("API key", hide_input=True)
+
+    # Validate key format
+    if not key or not key.startswith("cdk_"):
+        ui.error("Invalid API key format. Key must start with 'cdk_'")
+        return
+
+    # Load or create settings
+    settings = PlatformSettings.load()
+    settings.api_url = api_url
+    settings.proxy_url = proxy_url
+
+    # Validate the key
+    ui.phase("Validating API key...")
+    client = PlatformClient(settings)
+    is_valid, error_msg = client.validate_api_key(key)
+
+    if not is_valid:
+        ui.error(f"Authentication failed: {error_msg}")
+        return
+
+    ui.success("API key validated successfully")
+
+    # Prompt for org slug if not provided
+    if not org:
+        org = click.prompt("Organization slug", default="")
+
+    # Save settings
+    settings.api_key = key
+    settings.org_slug = org if org else None
+    settings.save()
+
+    ui.success(f"Logged in successfully")
+    if org:
+        ui.info(f"Organization: {org}")
+    ui.info(f"API URL: {api_url}")
+    ui.info(f"Proxy URL: {proxy_url}")
+    ui.info("\nYour docs will now sync to the platform after each run.")
+    ui.info("To disable sync, run: codilay auth config --no-sync")
+
+
+@auth_group.command("logout")
+def auth_logout():
+    """
+    Log out from the CodiLay platform.
+
+    \b
+    Clears stored credentials and disables platform sync.
+    """
+    from codilay.platform_settings import PlatformSettings
+    from codilay.ui import UI
+
+    ui = UI(console, False)
+    settings = PlatformSettings.load()
+
+    if not settings.is_logged_in():
+        ui.info("Not logged in.")
+        return
+
+    settings.clear()
+    ui.success("Logged out successfully")
+
+
+@auth_group.command("status")
+def auth_status():
+    """
+    Show current platform authentication status.
+
+    \b
+    Displays login status, organization, API URLs, and service health.
+    """
+    from codilay.platform_client import PlatformClient
+    from codilay.platform_settings import PlatformSettings
+    from codilay.ui import UI
+
+    ui = UI(console, False)
+    settings = PlatformSettings.load()
+
+    if not settings.is_logged_in():
+        ui.info("Not logged in.")
+        ui.info("\nTo log in, run: codilay auth login --key <your-api-key>")
+        return
+
+    # Show login info
+    console.print("\n[bold]Platform Status[/bold]\n")
+
+    table = Table(show_header=False, box=box.SIMPLE)
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+
+    table.add_row("Status", "[green]Logged in[/green]")
+    table.add_row("API Key", PlatformSettings.mask_key(settings.api_key))
+
+    if settings.org_slug:
+        table.add_row("Organization", settings.org_slug)
+
+    table.add_row("API URL", settings.api_url)
+    table.add_row("Proxy URL", settings.proxy_url)
+    table.add_row("Sync Enabled", "Yes" if settings.sync else "No")
+
+    console.print(table)
+
+    # Check service health
+    ui.phase("\nChecking service health...")
+    client = PlatformClient(settings)
+    proxy_healthy, api_healthy = client.check_health()
+
+    health_table = Table(show_header=False, box=box.SIMPLE)
+    health_table.add_column("Service", style="cyan")
+    health_table.add_column("Status")
+
+    proxy_status = "[green]✓ Reachable[/green]" if proxy_healthy else "[red]✗ Unreachable[/red]"
+    api_status = "[green]✓ Reachable[/green]" if api_healthy else "[red]✗ Unreachable[/red]"
+
+    health_table.add_row("Token Proxy", proxy_status)
+    health_table.add_row("Platform API", api_status)
+
+    console.print(health_table)
+    console.print()
+
+
+@auth_group.command("config")
+@click.option("--sync/--no-sync", default=None, help="Enable or disable platform sync")
+@click.option("--org", "-o", default=None, help="Set default organization slug")
+@click.option("--api-url", default=None, help="Set platform API base URL")
+@click.option("--proxy-url", default=None, help="Set token proxy base URL")
+def auth_config(sync, org, api_url, proxy_url):
+    """
+    Configure platform settings.
+
+    \b
+    Update sync preferences, organization, or service URLs.
+
+    \b
+    Examples:
+        codilay auth config --no-sync           Disable automatic sync
+        codilay auth config --org my-org        Set default organization
+        codilay auth config --api-url https://api.codilay.dev
+    """
+    from codilay.platform_settings import PlatformSettings
+    from codilay.ui import UI
+
+    ui = UI(console, False)
+    settings = PlatformSettings.load()
+
+    if not settings.is_logged_in():
+        ui.error("Not logged in. Run 'codilay auth login' first.")
+        return
+
+    # Update settings
+    if sync is not None:
+        settings.sync = sync
+        ui.success(f"Sync {'enabled' if sync else 'disabled'}")
+
+    if org:
+        settings.org_slug = org
+        ui.success(f"Organization set to: {org}")
+
+    if api_url:
+        settings.api_url = api_url
+        ui.success(f"API URL set to: {api_url}")
+
+    if proxy_url:
+        settings.proxy_url = proxy_url
+        ui.success(f"Proxy URL set to: {proxy_url}")
+
+    settings.save()
 
 
 # ─── Hooks group ──────────────────────────────────────────────────────────────

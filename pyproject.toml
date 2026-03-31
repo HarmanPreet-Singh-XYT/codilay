@@ -31,6 +31,9 @@ dependencies = [
     "rich>=13.9.0",
 ]
 [project.optional-dependencies]
+platform = [
+    "httpx>=0.24.0",
+]
 serve = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -39,6 +42,7 @@ watch = [
     "watchdog>=3.0.0",
 ]
 all = [
+    "httpx>=0.24.0",
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "watchdog>=3.0.0",
@@ -46,6 +50,7 @@ all = [
 dev = [
     "pytest>=7.0",
     "ruff>=0.1.0",
+    "httpx>=0.24.0",
 ]
 
 [project.urls]

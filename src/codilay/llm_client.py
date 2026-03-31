@@ -207,10 +207,38 @@ class LLMClient:
             import anthropic
         except ImportError:
             raise ImportError("The 'anthropic' package is required. Install: pip install anthropic")
+
+        # Check for platform proxy routing first
         api_key = os.environ.get(pcfg["env_key"])
+        use_proxy = False
+
         if not api_key:
-            raise ValueError(f"{pcfg['env_key']} not set. export {pcfg['env_key']}=your-key")
-        self.client = anthropic.Anthropic(api_key=api_key)
+            # No local Anthropic key — try platform proxy
+            try:
+                from codilay.platform_settings import PlatformSettings
+
+                platform_settings = PlatformSettings.load()
+                if platform_settings.is_logged_in():
+                    # Route through platform proxy
+                    self.client = anthropic.Anthropic(
+                        api_key="placeholder",  # Required by SDK but ignored by proxy
+                        base_url=platform_settings.proxy_url,
+                        default_headers={"X-CodiLay-API-Key": platform_settings.api_key},
+                    )
+                    use_proxy = True
+                else:
+                    raise ValueError(
+                        f"{pcfg['env_key']} not set. Either:\n"
+                        f"  1. export {pcfg['env_key']}=your-anthropic-key\n"
+                        f"  2. Run 'codilay auth login' to use the platform token proxy"
+                    )
+            except ImportError:
+                # Platform settings not available
+                raise ValueError(f"{pcfg['env_key']} not set. export {pcfg['env_key']}=your-key")
+
+        if not use_proxy:
+            # Use local API key directly
+            self.client = anthropic.Anthropic(api_key=api_key)
 
     # ── OpenAI / compatible init ───────────────────────────────────
 
@@ -236,8 +264,30 @@ class LLMClient:
 
         # Resolve API key
         env_key = pcfg.get("env_key")
+        api_key = None
+        use_proxy = False
+
         if env_key:
             api_key = os.environ.get(env_key)
+
+            # For OpenAI provider specifically, try platform proxy if no local key
+            if not api_key and self.provider == "openai":
+                try:
+                    from codilay.platform_settings import PlatformSettings
+
+                    platform_settings = PlatformSettings.load()
+                    if platform_settings.is_logged_in():
+                        # Route through platform proxy
+                        # Note: The proxy currently supports Anthropic format at /v1/messages
+                        # OpenAI routing would need a separate endpoint on the proxy
+                        # For now, we only support Anthropic proxy routing
+                        raise ValueError(
+                            f"{env_key} not set. Platform proxy currently only supports Anthropic models.\n"
+                            f"export {env_key}=your-openai-key"
+                        )
+                except ImportError:
+                    pass
+
             if not api_key:
                 raise ValueError(f"{env_key} not set. export {env_key}=your-key")
         else:

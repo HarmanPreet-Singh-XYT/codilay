@@ -1485,6 +1485,7 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
         menu.add_row("[11]", "✍️   Annotate — add AI-generated docstrings & comments")
         menu.add_row("[12]", "📝  Commit documentation — document what changed in commits")
         menu.add_row("[13]", "🪝  Git hooks — install/remove auto-run hooks")
+        menu.add_row("[14]", "☁️   Platform — sync docs to cloud & token proxy")
         menu.add_row("[0]", "← Back to main menu")
 
         console.print(menu)
@@ -1492,7 +1493,7 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
 
         choice = Prompt.ask(
             "[bold cyan]Select a tool[/bold cyan]",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"],
             default="0",
         )
 
@@ -1563,6 +1564,9 @@ def _menu_tools(settings: Settings) -> Optional[dict]:
             result = _menu_tool_hooks(settings)
             if result:
                 return result
+
+        elif choice == "14":
+            _menu_tool_platform(settings)
 
 
 def _menu_tool_annotate(settings: Settings) -> Optional[dict]:
@@ -2137,3 +2141,182 @@ def _menu_tool_hooks(settings: Settings) -> Optional[dict]:
             if not confirmed:
                 continue
             return {"action": "shell", "command": f"codilay hooks uninstall {target} --commit-doc"}
+
+
+def _menu_tool_platform(settings: Settings) -> None:
+    """Platform integration menu — auth, sync, and token proxy."""
+    while True:
+        _clear()
+        _header("Platform Integration")
+        _back_hint()
+
+        # Check login status
+        try:
+            from codilay.platform_settings import PlatformSettings
+
+            platform_settings = PlatformSettings.load()
+            is_logged_in = platform_settings.is_logged_in()
+        except ImportError:
+            console.print(
+                "[red]Platform integration requires httpx.[/red]\n"
+                "[dim]Install with: [bold]pip install codilay[platform][/bold][/dim]\n"
+            )
+            _pause()
+            return None
+
+        # Show status
+        if is_logged_in:
+            console.print(
+                Panel(
+                    f"[bold green]✓ Logged in[/bold green]\n\n"
+                    f"  API Key:      {PlatformSettings.mask_key(platform_settings.api_key)}\n"
+                    f"  Organization: {platform_settings.org_slug or '[dim]not set[/dim]'}\n"
+                    f"  Sync:         {'[green]Enabled[/green]' if platform_settings.sync else '[yellow]Disabled[/yellow]'}",
+                    border_style="green",
+                    title="[bold]Status[/bold]",
+                    title_align="left",
+                )
+            )
+        else:
+            console.print(
+                Panel(
+                    "[bold yellow]✗ Not logged in[/bold yellow]\n\n"
+                    "[dim]Log in to sync docs to the cloud and use the token proxy.[/dim]",
+                    border_style="yellow",
+                    title="[bold]Status[/bold]",
+                    title_align="left",
+                )
+            )
+
+        console.print()
+
+        # Menu options
+        opts = Table(show_header=False, box=None, padding=(0, 2))
+        opts.add_column("key", style="bold cyan", width=6, justify="right")
+        opts.add_column("action")
+
+        if not is_logged_in:
+            opts.add_row("[1]", "🔐  Log in to platform")
+            opts.add_row("[2]", "📖  View documentation")
+            opts.add_row("[0]", "← Back")
+            choices = ["0", "1", "2"]
+        else:
+            opts.add_row("[1]", "📊  View detailed status & health")
+            opts.add_row(
+                "[2]",
+                f"{'🔕' if platform_settings.sync else '🔔'}  {'Disable' if platform_settings.sync else 'Enable'} automatic sync",
+            )
+            opts.add_row("[3]", "⚙️   Configure organization")
+            opts.add_row("[4]", "🚪  Log out")
+            opts.add_row("[5]", "📖  View documentation")
+            opts.add_row("[0]", "← Back")
+            choices = ["0", "1", "2", "3", "4", "5"]
+
+        console.print(opts)
+        console.print()
+
+        choice = Prompt.ask(
+            "[bold cyan]Select[/bold cyan]",
+            choices=choices,
+            default="0",
+        )
+
+        if choice == "0":
+            return None
+
+        elif choice == "1" and not is_logged_in:
+            # Log in
+            _clear()
+            _header("Platform Login")
+            console.print(
+                "[dim]Enter your CodiLay API key (starts with [bold]cdk_[/bold]).\n"
+                "Get one from your platform dashboard.[/dim]\n"
+            )
+
+            api_key = Prompt.ask("API key", password=True)
+
+            if not api_key or not api_key.startswith("cdk_"):
+                console.print("[red]Invalid API key format. Key must start with 'cdk_'[/red]")
+                _pause()
+                continue
+
+            org_slug = Prompt.ask("Organization slug", default="")
+
+            console.print("\n[dim]Validating API key...[/dim]")
+
+            try:
+                from codilay.platform_client import PlatformClient
+
+                client = PlatformClient(platform_settings)
+                is_valid, error_msg = client.validate_api_key(api_key)
+
+                if not is_valid:
+                    console.print(f"[red]✗ Authentication failed: {error_msg}[/red]")
+                    _pause()
+                    continue
+
+                platform_settings.api_key = api_key
+                platform_settings.org_slug = org_slug if org_slug else None
+                platform_settings.save()
+
+                console.print("[green]✓ Logged in successfully![/green]")
+                _pause()
+
+            except Exception as e:
+                console.print(f"[red]✗ Login failed: {e}[/red]")
+                _pause()
+
+        elif choice == "1" and is_logged_in:
+            # View detailed status
+            return {"action": "shell", "command": "codilay auth status"}
+
+        elif choice == "2" and is_logged_in:
+            # Toggle sync
+            new_sync = not platform_settings.sync
+            platform_settings.sync = new_sync
+            platform_settings.save()
+            console.print(f"\n[green]✓ Sync {'enabled' if new_sync else 'disabled'}[/green]")
+            _pause()
+
+        elif choice == "2" and not is_logged_in:
+            # View docs
+            console.print(
+                "\n[bold]Platform Integration Documentation[/bold]\n\n"
+                "[dim]See PLATFORM_INTEGRATION.md in the CodiLay repository for:[/dim]\n"
+                "  • Getting started guide\n"
+                "  • Authentication setup\n"
+                "  • Token proxy usage\n"
+                "  • CI/CD integration\n"
+                "  • Self-hosting instructions\n"
+            )
+            _pause()
+
+        elif choice == "3":
+            # Configure org
+            new_org = Prompt.ask("Organization slug", default=platform_settings.org_slug or "")
+            if new_org:
+                platform_settings.org_slug = new_org
+                platform_settings.save()
+                console.print(f"\n[green]✓ Organization set to: {new_org}[/green]")
+            _pause()
+
+        elif choice == "4":
+            # Log out
+            confirmed = Confirm.ask("\nLog out from the platform?", default=False)
+            if confirmed:
+                platform_settings.clear()
+                console.print("[green]✓ Logged out successfully[/green]")
+            _pause()
+
+        elif choice == "5":
+            # View docs
+            console.print(
+                "\n[bold]Platform Integration Documentation[/bold]\n\n"
+                "[dim]See PLATFORM_INTEGRATION.md in the CodiLay repository for:[/dim]\n"
+                "  • Getting started guide\n"
+                "  • Authentication setup\n"
+                "  • Token proxy usage\n"
+                "  • CI/CD integration\n"
+                "  • Self-hosting instructions\n"
+            )
+            _pause()
