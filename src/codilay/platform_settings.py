@@ -10,7 +10,7 @@ platform-specific fields.
 """
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -26,15 +26,22 @@ class PlatformSettings:
     # Primary credential for platform API and token proxy
     api_key: Optional[str] = None
 
-    # Base URLs for services
-    api_url: str = "http://localhost:8000"  # platform-api
-    proxy_url: str = "http://localhost:8001"  # token-proxy
+    # Base URL for the CodiLay platform API
+    api_url: str = "https://api.codilay.com"
 
-    # User's default organization slug
+    # User's default organization slug (optional — org is resolved from token on backend)
     org_slug: Optional[str] = None
 
     # Whether to sync docs to platform after each run
-    sync: bool = True
+    sync_enabled: bool = True
+
+    # Whether to route LLM calls through the token proxy when no local key is set
+    token_proxy_enabled: bool = True
+
+    @property
+    def proxy_url(self) -> str:
+        """Token proxy URL — always derived from api_url."""
+        return f"{self.api_url}/api/llm"
 
     @classmethod
     def load(cls) -> "PlatformSettings":
@@ -46,13 +53,15 @@ class PlatformSettings:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # Extract only the platform-specific fields
+            # Extract only the platform-specific fields.
+            # Backward-compat: old keys used "platform_sync" and "platform_proxy_url".
             platform_data = {
                 "api_key": data.get("platform_api_key"),
-                "api_url": data.get("platform_api_url", "http://localhost:8000"),
-                "proxy_url": data.get("platform_proxy_url", "http://localhost:8001"),
+                "api_url": data.get("platform_api_url", "https://api.codilay.com"),
                 "org_slug": data.get("platform_org_slug"),
-                "sync": data.get("platform_sync", True),
+                # Prefer new key, fall back to old "platform_sync" key
+                "sync_enabled": data.get("platform_sync_enabled", data.get("platform_sync", True)),
+                "token_proxy_enabled": data.get("platform_token_proxy_enabled", True),
             }
 
             return cls(**platform_data)
@@ -77,14 +86,18 @@ class PlatformSettings:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        # Remove stale keys from older schema
+        existing_data.pop("platform_proxy_url", None)
+        existing_data.pop("platform_sync", None)
+
         # Merge platform settings with existing data
         existing_data.update(
             {
                 "platform_api_key": self.api_key,
                 "platform_api_url": self.api_url,
-                "platform_proxy_url": self.proxy_url,
                 "platform_org_slug": self.org_slug,
-                "platform_sync": self.sync,
+                "platform_sync_enabled": self.sync_enabled,
+                "platform_token_proxy_enabled": self.token_proxy_enabled,
             }
         )
 

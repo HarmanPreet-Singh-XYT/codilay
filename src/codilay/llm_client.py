@@ -218,12 +218,15 @@ class LLMClient:
                 from codilay.platform_settings import PlatformSettings
 
                 platform_settings = PlatformSettings.load()
-                if platform_settings.is_logged_in():
-                    # Route through platform proxy
+                if platform_settings.is_logged_in() and platform_settings.token_proxy_enabled:
+                    # Route through platform token proxy.
+                    # proxy_url is {api_url}/api/llm; the SDK appends /v1/messages.
+                    # Authorization header overrides the SDK's own bearer token so
+                    # the proxy authenticates the CodiLay API key, not "placeholder".
                     self.client = anthropic.Anthropic(
-                        api_key="placeholder",  # Required by SDK but ignored by proxy
+                        api_key="placeholder",  # Required by SDK but overridden below
                         base_url=platform_settings.proxy_url,
-                        default_headers={"X-CodiLay-API-Key": platform_settings.api_key},
+                        default_headers={"Authorization": f"Bearer {platform_settings.api_key}"},
                     )
                     use_proxy = True
                 else:

@@ -191,8 +191,9 @@ def cli(ctx, config, output, model, provider, base_url, verbose):
         "than 'unresolved'."
     ),
 )
+@click.option("--no-sync", is_flag=True, default=False, help="Skip syncing results to the CodiLay platform")
 @click.pass_context
-def run(ctx, target, scope):
+def run(ctx, target, scope, no_sync):
     """Run the documentation agent (default command)."""
     settings: Settings = ctx.obj["settings"]
     target = os.path.abspath(target)
@@ -977,7 +978,8 @@ def run(ctx, target, scope):
     )
 
     # ── Platform sync ────────────────────────────────────────────
-    _sync_to_platform(target, output_dir, ui)
+    if not no_sync:
+        _sync_to_platform(target, output_dir, ui)
 
 
 def _sync_to_platform(target: str, output_dir: str, ui) -> None:
@@ -996,7 +998,7 @@ def _sync_to_platform(target: str, output_dir: str, ui) -> None:
         # Skip if not logged in or sync disabled
         if not settings.is_logged_in():
             return
-        if not settings.sync:
+        if not settings.sync_enabled:
             return
 
         # Get git info if available
@@ -1013,11 +1015,6 @@ def _sync_to_platform(target: str, output_dir: str, ui) -> None:
         # Derive repo slug from directory name
         repo_slug = os.path.basename(os.path.abspath(target))
 
-        # Check org slug
-        if not settings.org_slug:
-            ui.warn("Platform sync skipped: no organization configured. Run 'codilay auth config --org <slug>'")
-            return
-
         # Find output files
         from pathlib import Path
 
@@ -1033,8 +1030,7 @@ def _sync_to_platform(target: str, output_dir: str, ui) -> None:
         ui.phase("Syncing to CodiLay platform...")
         client = PlatformClient(settings)
 
-        run = client.sync_run(
-            org_slug=settings.org_slug,
+        result = client.sync_run(
             repo_slug=repo_slug,
             codebase_md_path=codebase_md,
             commit_sha=commit_sha,
@@ -1043,9 +1039,13 @@ def _sync_to_platform(target: str, output_dir: str, ui) -> None:
             state_json_path=state_json if state_json.exists() else None,
         )
 
-        run_id = run.get("id", "unknown")
+        run_id = result.get("run_id", result.get("id", "unknown"))
         run_id_short = str(run_id)[:8] if run_id != "unknown" else "unknown"
-        ui.success(f"Synced to platform (run {run_id_short})")
+        view_url = result.get("view_url", "")
+        if view_url:
+            ui.success(f"Synced to platform (run {run_id_short}) — {view_url}")
+        else:
+            ui.success(f"Synced to platform (run {run_id_short})")
 
     except ImportError:
         # httpx not installed — silently skip
@@ -4416,25 +4416,24 @@ def auth_group():
 
 @auth_group.command("login")
 @click.option("--key", "-k", default=None, help="CodiLay API key (starts with cdk_)")
-@click.option("--org", "-o", default=None, help="Organization slug")
+@click.option("--org", "-o", default=None, help="Organization slug (optional)")
 @click.option(
     "--api-url",
-    default="http://localhost:8000",
-    help="Platform API base URL (default: http://localhost:8000)",
+    default="https://api.codilay.com",
+    help="Platform API base URL (default: https://api.codilay.com)",
 )
-@click.option(
-    "--proxy-url",
-    default="http://localhost:8001",
-    help="Token proxy base URL (default: http://localhost:8001)",
-)
-def auth_login(key, org, api_url, proxy_url):
+def auth_login(key, org, api_url):
     """
     Log in to the CodiLay platform.
 
     \b
     Authenticates with a CodiLay API key and stores credentials locally.
     The API key is used for syncing docs to the platform and routing
-    LLM requests through the token proxy.
+    LLM requests through the token proxy (at {api_url}/api/llm).
+
+    \b
+    Get your token from: https://app.codilay.com/onboarding
+    Or from: https://app.codilay.com/dashboard/settings
 
     \b
     Examples:
@@ -4461,9 +4460,8 @@ def auth_login(key, org, api_url, proxy_url):
     # Load or create settings
     settings = PlatformSettings.load()
     settings.api_url = api_url
-    settings.proxy_url = proxy_url
 
-    # Validate the key
+    # Validate the key against /api/auth/me
     ui.phase("Validating API key...")
     client = PlatformClient(settings)
     is_valid, error_msg = client.validate_api_key(key)
@@ -4474,20 +4472,16 @@ def auth_login(key, org, api_url, proxy_url):
 
     ui.success("API key validated successfully")
 
-    # Prompt for org slug if not provided
-    if not org:
-        org = click.prompt("Organization slug", default="")
-
     # Save settings
     settings.api_key = key
     settings.org_slug = org if org else None
     settings.save()
 
-    ui.success(f"Logged in successfully")
+    ui.success("Logged in successfully")
     if org:
         ui.info(f"Organization: {org}")
     ui.info(f"API URL: {api_url}")
-    ui.info(f"Proxy URL: {proxy_url}")
+    ui.info(f"Token proxy: {settings.proxy_url}")
     ui.info("\nYour docs will now sync to the platform after each run.")
     ui.info("To disable sync, run: codilay auth config --no-sync")
 
@@ -4548,8 +4542,9 @@ def auth_status():
         table.add_row("Organization", settings.org_slug)
 
     table.add_row("API URL", settings.api_url)
-    table.add_row("Proxy URL", settings.proxy_url)
-    table.add_row("Sync Enabled", "Yes" if settings.sync else "No")
+    table.add_row("Token Proxy", settings.proxy_url)
+    table.add_row("Sync Enabled", "Yes" if settings.sync_enabled else "No")
+    table.add_row("Proxy Enabled", "Yes" if settings.token_proxy_enabled else "No")
 
     console.print(table)
 
@@ -4573,11 +4568,11 @@ def auth_status():
 
 
 @auth_group.command("config")
-@click.option("--sync/--no-sync", default=None, help="Enable or disable platform sync")
+@click.option("--sync/--no-sync", default=None, help="Enable or disable platform sync after each run")
+@click.option("--proxy/--no-proxy", "proxy_enabled", default=None, help="Enable or disable token proxy for LLM calls")
 @click.option("--org", "-o", default=None, help="Set default organization slug")
 @click.option("--api-url", default=None, help="Set platform API base URL")
-@click.option("--proxy-url", default=None, help="Set token proxy base URL")
-def auth_config(sync, org, api_url, proxy_url):
+def auth_config(sync, proxy_enabled, org, api_url):
     """
     Configure platform settings.
 
@@ -4587,6 +4582,7 @@ def auth_config(sync, org, api_url, proxy_url):
     \b
     Examples:
         codilay auth config --no-sync           Disable automatic sync
+        codilay auth config --no-proxy          Disable token proxy (use local API key)
         codilay auth config --org my-org        Set default organization
         codilay auth config --api-url https://api.codilay.dev
     """
@@ -4602,8 +4598,12 @@ def auth_config(sync, org, api_url, proxy_url):
 
     # Update settings
     if sync is not None:
-        settings.sync = sync
+        settings.sync_enabled = sync
         ui.success(f"Sync {'enabled' if sync else 'disabled'}")
+
+    if proxy_enabled is not None:
+        settings.token_proxy_enabled = proxy_enabled
+        ui.success(f"Token proxy {'enabled' if proxy_enabled else 'disabled'}")
 
     if org:
         settings.org_slug = org
@@ -4612,10 +4612,7 @@ def auth_config(sync, org, api_url, proxy_url):
     if api_url:
         settings.api_url = api_url
         ui.success(f"API URL set to: {api_url}")
-
-    if proxy_url:
-        settings.proxy_url = proxy_url
-        ui.success(f"Proxy URL set to: {proxy_url}")
+        ui.info(f"Token proxy: {settings.proxy_url}")
 
     settings.save()
 

@@ -5,7 +5,6 @@ Handles authentication validation, sync operations, and communication
 with the CodiLay platform API and token proxy.
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -29,9 +28,14 @@ class PlatformClient:
         self.settings = settings
         self.timeout = httpx.Timeout(30.0, connect=10.0)
 
+    def _auth_headers(self, api_key: Optional[str] = None) -> Dict[str, str]:
+        """Return authorization headers for platform API requests."""
+        key = api_key or self.settings.api_key
+        return {"Authorization": f"Bearer {key}"}
+
     def validate_api_key(self, api_key: str) -> tuple[bool, Optional[str]]:
         """
-        Validate a CodiLay API key by making a test request to the token proxy.
+        Validate a CodiLay API key by calling GET /api/auth/me.
 
         Returns:
             (is_valid, error_message) tuple
@@ -40,35 +44,23 @@ class PlatformClient:
             return False, "Invalid API key format. Key must start with 'cdk_'"
 
         try:
-            # Make a minimal test request to the proxy
             with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(
-                    f"{self.settings.proxy_url}/v1/messages",
-                    headers={
-                        "X-CodiLay-API-Key": api_key,
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": "claude-3-haiku-20240307",
-                        "max_tokens": 1,
-                        "messages": [{"role": "user", "content": "hi"}],
-                    },
+                response = client.get(
+                    f"{self.settings.api_url}/api/auth/me",
+                    headers=self._auth_headers(api_key),
                 )
 
-                # 200 = valid response, 4xx from Anthropic API = key works but request issue
-                if response.status_code == 200 or 400 <= response.status_code < 500:
-                    # Check if it's an auth error specifically
-                    if response.status_code == 401:
-                        return False, "Invalid API key"
-                    elif response.status_code == 403:
-                        return False, "No credits remaining or account deactivated"
-                    # Any other response means the key authenticated successfully
+                if response.status_code == 200:
                     return True, None
-
-                return False, f"Unexpected response: {response.status_code}"
+                elif response.status_code == 401:
+                    return False, "Invalid API key"
+                elif response.status_code == 403:
+                    return False, "No credits remaining or account deactivated"
+                else:
+                    return False, f"Unexpected response: {response.status_code}"
 
         except httpx.ConnectError:
-            return False, f"Could not connect to proxy at {self.settings.proxy_url}"
+            return False, f"Could not connect to platform at {self.settings.api_url}"
         except httpx.TimeoutException:
             return False, "Request timed out"
         except Exception as e:
@@ -86,14 +78,14 @@ class PlatformClient:
 
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                # Check proxy
+                # Check token proxy health
                 try:
                     resp = client.get(f"{self.settings.proxy_url}/health")
                     proxy_healthy = resp.status_code == 200
                 except Exception:
                     pass
 
-                # Check platform API
+                # Check platform API health
                 try:
                     resp = client.get(f"{self.settings.api_url}/health")
                     api_healthy = resp.status_code == 200
@@ -107,7 +99,6 @@ class PlatformClient:
 
     def sync_run(
         self,
-        org_slug: str,
         repo_slug: str,
         codebase_md_path: Path,
         commit_sha: Optional[str] = None,
@@ -116,11 +107,10 @@ class PlatformClient:
         state_json_path: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """
-        Upload a completed run to the platform.
+        Upload a completed run to the platform via POST /api/sync.
 
         Args:
-            org_slug: Organization slug
-            repo_slug: Repository slug
+            repo_slug: Repository slug (derived from directory name)
             codebase_md_path: Path to CODEBASE.md file
             commit_sha: Git commit SHA (optional)
             branch: Git branch name (optional)
@@ -136,41 +126,36 @@ class PlatformClient:
         if not self.settings.api_key:
             raise ValueError("No API key configured. Run 'codilay auth login' first.")
 
-        # Prepare form data
-        files = {}
-        data = {
-            "org_slug": org_slug,
-            "repo_slug": repo_slug,
-        }
-
-        if commit_sha:
-            data["commit_sha"] = commit_sha
-        if branch:
-            data["branch"] = branch
-
-        # Add files
         if not codebase_md_path.exists():
             raise FileNotFoundError(f"CODEBASE.md not found at {codebase_md_path}")
 
-        files["codebase_md"] = ("CODEBASE.md", codebase_md_path.open("rb"), "text/markdown")
+        # Build files dict with file contents as strings (JSON body, not multipart)
+        files: Dict[str, Optional[str]] = {
+            "codebase_md": codebase_md_path.read_text(encoding="utf-8"),
+            "links_json": links_json_path.read_text(encoding="utf-8")
+            if links_json_path and links_json_path.exists()
+            else None,
+            "state_json": state_json_path.read_text(encoding="utf-8")
+            if state_json_path and state_json_path.exists()
+            else None,
+        }
 
-        if links_json_path and links_json_path.exists():
-            files["links_json"] = ("links.json", links_json_path.open("rb"), "application/json")
-
-        if state_json_path and state_json_path.exists():
-            files["state_json"] = ("state.json", state_json_path.open("rb"), "application/json")
+        body: Dict[str, Any] = {
+            "repo_slug": repo_slug,
+            "files": {k: v for k, v in files.items() if v is not None},
+        }
+        if commit_sha:
+            body["commit_sha"] = commit_sha
+        if branch:
+            body["branch"] = branch
 
         try:
             with httpx.Client(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
                 response = client.post(
-                    f"{self.settings.api_url}/api/sync/upload",
-                    headers={
-                        "X-CodiLay-API-Key": self.settings.api_key,
-                    },
-                    data=data,
-                    files=files,
+                    f"{self.settings.api_url}/api/sync",
+                    json=body,
+                    headers=self._auth_headers(),
                 )
-
                 response.raise_for_status()
                 return response.json()
 
@@ -178,9 +163,9 @@ class PlatformClient:
             if e.response.status_code == 401:
                 raise Exception("Authentication failed. Your API key may be invalid.")
             elif e.response.status_code == 403:
-                raise Exception("Permission denied. Check your organization membership or plan limits.")
+                raise Exception("Permission denied. Check your plan limits.")
             elif e.response.status_code == 404:
-                raise Exception(f"Organization '{org_slug}' not found.")
+                raise Exception("Sync endpoint not found. Check your platform URL.")
             else:
                 raise Exception(f"Sync failed with status {e.response.status_code}: {e.response.text}")
         except httpx.ConnectError:
@@ -189,8 +174,3 @@ class PlatformClient:
             raise Exception("Sync request timed out")
         except Exception as e:
             raise Exception(f"Sync error: {str(e)}")
-        finally:
-            # Close file handles
-            for file_obj in files.values():
-                if hasattr(file_obj[1], "close"):
-                    file_obj[1].close()
